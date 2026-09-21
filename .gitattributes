@@ -1,0 +1,19 @@
+# 统一换行符 —— 防止 Windows 上提交的 CRLF 破坏 Linux/macOS 下的脚本
+* text=auto
+
+# Unix shell 脚本必须 LF（CRLF 会让 shebang 失效）
+gradlew text eol=lf
+*.sh    text eol=lf
+
+# Windows 批处理必须 CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# 二进制
+*.jar   binary
+*.apk   binary
+*.aab   binary
+*.keystore binary
+*.jks   binary
+*.png   binary
+*.webp  binary
