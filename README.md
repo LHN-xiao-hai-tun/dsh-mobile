@@ -2,7 +2,22 @@
 
 > 在平板 / 手机上**像原生 App 一样**使用你自己部署的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/LHN-xiao-hai-tun/dsh-mobile?label=release)](../../releases)
+[![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-brightgreen.svg)](#安装)
+[![APK](https://img.shields.io/badge/APK-~3%20MB-orange.svg)](../../releases)
+
 一个**极简 WebView 容器**（约 3 MB）。**不含 DSH 本体**，也**不内置任何服务器地址** —— 填入你自己的服务地址即可。
+
+---
+
+## 界面预览
+
+| 全屏主界面（平板 · 无浏览器地址栏） | 服务器设置（手机） |
+|---|---|
+| ![主界面](screenshots/home.png) | ![设置页](screenshots/settings.png) |
+
+> 截图取自真机：平板 HONOR CHG-W60（横屏）· 手机（竖屏，地址已打码）。
 
 ---
 
