@@ -20,4 +20,15 @@
         -->
         <item name="android:forceDarkAllowed">false</item>
     </style>
+
+    <!--
+      启动页（Android 官方 SplashScreen API）：
+      深色底 + 官方 DSH 图标，冷启动时先显示它，随后切回 Theme.DSH。
+    -->
+    <style name="Theme.DSH.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/app_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_dsh_fg</item>
+        <item name="windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/Theme.DSH</item>
+    </style>
 </resources>

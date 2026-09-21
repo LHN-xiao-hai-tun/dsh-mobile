@@ -24,6 +24,8 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.core.splashscreen.SplashScreen;
+
 /**
  * DSH Mobile · 轻量 WebView 容器
  *
@@ -41,6 +43,8 @@ public class MainActivity extends Activity {
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 启动页：必须在 super.onCreate 之前安装（Android 官方 SplashScreen API）
+        SplashScreen.installSplashScreen(this);
         super.onCreate(savedInstanceState);
 
         float dp = getResources().getDisplayMetrics().density;

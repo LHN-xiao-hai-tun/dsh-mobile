@@ -37,4 +37,6 @@ configurations.all {
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    // 官方 SplashScreen API（启动页）—— 体积约几十 KB，不引入额外 SDK
+    implementation 'androidx.core:core-splashscreen:1.0.1'
 }
