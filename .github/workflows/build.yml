@@ -46,3 +46,21 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  # 独立作业：确认 gradlew 本身可用（shebang 为 LF、jar 在库）
+  # —— 曾经的缺陷：仓库只有 gradlew.bat，README 里的 ./gradlew 与 CI 都跑不起来。
+  wrapper:
+    name: gradle wrapper 可用性
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Verify ./gradlew is executable and reports a version
+        run: ./gradlew --version
