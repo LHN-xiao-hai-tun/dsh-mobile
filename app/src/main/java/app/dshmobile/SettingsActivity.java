@@ -2,7 +2,7 @@ package app.dshmobile;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.ViewGroup;
@@ -13,10 +13,13 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.List;
+
 /**
  * 服务器地址设置页。
  *
  * 只存用户自己填的地址，不预置任何服务器。
+ * 下方列出「最近连接」历史（最多 5 条，纯本机），点一下即可填入。
  */
 public class SettingsActivity extends Activity {
 
@@ -49,14 +52,36 @@ public class SettingsActivity extends Activity {
                 + "若服务端开了访问密码，打开后会要求输入。\n");
         root.addView(hint);
 
-        SharedPreferences sp = getSharedPreferences("dsh", MODE_PRIVATE);
-
         EditText et = new EditText(this);
         et.setHint("http://192.168.x.x:3081");
         et.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
         et.setSingleLine(true);
-        et.setText(sp.getString("url", ""));
+        et.setText(Prefs.url(this));
         root.addView(et);
+
+        // 最近连接：点一下填入（只读本机记录，不联网）
+        List<String> history = Prefs.history(this);
+        if (!history.isEmpty()) {
+            TextView label = new TextView(this);
+            label.setTextSize(13);
+            label.setAlpha(0.6f);
+            label.setPadding(0, (int) (18 * d), 0, (int) (4 * d));
+            label.setText("最近连接（点一下填入）");
+            root.addView(label);
+
+            for (final String h : history) {
+                TextView row = new TextView(this);
+                row.setText(h);
+                row.setTextSize(14);
+                row.setTypeface(Typeface.MONOSPACE);
+                row.setPadding((int) (8 * d), (int) (10 * d), (int) (8 * d), (int) (10 * d));
+                row.setOnClickListener(v -> {
+                    et.setText(h);
+                    et.setSelection(et.getText().length());
+                });
+                root.addView(row);
+            }
+        }
 
         Button save = new Button(this);
         save.setText("保存并连接");
@@ -65,15 +90,13 @@ public class SettingsActivity extends Activity {
         lp.topMargin = (int) (16 * d);
         save.setLayoutParams(lp);
         save.setOnClickListener(v -> {
-            String u = et.getText().toString().trim();
+            String u = Prefs.normalize(et.getText().toString());
             if (u.isEmpty()) {
                 Toast.makeText(this, "请填写地址", Toast.LENGTH_SHORT).show();
                 return;
             }
-            if (!u.startsWith("http://") && !u.startsWith("https://")) {
-                u = "http://" + u;
-            }
-            sp.edit().putString("url", u).apply();
+            Prefs.setUrl(this, u);
+            Prefs.pushHistory(this, u);
             Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show();
             finish();
         });
@@ -82,7 +105,7 @@ public class SettingsActivity extends Activity {
         Button clear = new Button(this);
         clear.setText("清除地址");
         clear.setOnClickListener(v -> {
-            sp.edit().remove("url").apply();
+            Prefs.clearUrl(this);
             et.setText("");
             Toast.makeText(this, "已清除", Toast.LENGTH_SHORT).show();
         });
