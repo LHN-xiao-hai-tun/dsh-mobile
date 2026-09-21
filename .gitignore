@@ -10,3 +10,6 @@ local.properties
 *.aab
 *.keystore
 *.jks
+
+# 签名口令/路径（本机专用，绝不入库）
+keystore.properties

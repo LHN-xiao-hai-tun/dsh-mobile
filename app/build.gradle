@@ -2,6 +2,15 @@ plugins {
     id 'com.android.application'
 }
 
+// 正式签名配置：从仓库根的 keystore.properties 读取（该文件已被 .gitignore 忽略，绝不入库）
+// 若文件不存在（例如他人 clone 本仓库）→ 自动回退为「release 不签名」，assembleDebug 仍可正常构建
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+def hasReleaseKeystore = keystorePropsFile.exists()
+if (hasReleaseKeystore) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace 'app.dshmobile'
     compileSdk 34
@@ -10,14 +19,27 @@ android {
         applicationId "app.dshmobile"
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName "1.2.0"
+        versionCode 5
+        versionName "1.2.1"
+    }
+
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            if (hasReleaseKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
     compileOptions {
