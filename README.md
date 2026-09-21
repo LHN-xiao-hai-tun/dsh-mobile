@@ -2,6 +2,7 @@
 
 > 在平板 / 手机上**像原生 App 一样**使用你自己部署的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
 
+[![Build](https://github.com/LHN-xiao-hai-tun/dsh-mobile/actions/workflows/build.yml/badge.svg)](https://github.com/LHN-xiao-hai-tun/dsh-mobile/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/LHN-xiao-hai-tun/dsh-mobile?label=release)](../../releases)
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-brightgreen.svg)](#安装)
