@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  DSH Mobile · 用户可见文字「单一来源」（v1.2.4 起全部 UI 文案集中于此）
+  ══════════════════════════════════════════════════════════════════
+  约定：
+   ① 任何「用户可见」的新文字一律加在这里；代码里不再写中文字面量
+      （构建层已强制 UTF-8，本文件集中管理 = 第二道防乱码防线）
+   ② 带参数的串用 %1$s / %2$s 位置占位符，不要写裸 %
+   ③ 需要保留首尾空白的串必须用双引号包裹（aapt 会裁掉裸串的首尾空白）
+   ④ 分节注释按「页面 / 模块」分组，便于将来做多语言
+-->
 <resources>
     <string name="app_name">DSH Mobile</string>
     <string name="settings_title">设置</string>
@@ -7,4 +17,54 @@
     <string name="fab_settings">设置（可拖动）</string>
     <string name="fab_commands">快捷指令（可拖动）</string>
     <string name="err_connect">连不上服务器，点齿轮按钮检查地址</string>
+
+    <!-- ═══ 设置页（SettingsActivity） ═══ -->
+    <string name="settings_conn_title">连接 DSH 服务器</string>
+    <string name="settings_conn_hint">"填入你自己部署的 DeepSeek Harness 地址。\n\n常用形式：\n  • 局域网：  http://&lt;电脑IP&gt;:3081\n  • 本机服务：http://127.0.0.1:3080\n\n提示：确认手机与该服务在同一网络；\n若服务端开了访问密码，打开后会要求输入。\n"</string>
+    <string name="settings_url_hint">http://192.168.x.x:3081</string>
+    <string name="settings_history_label">最近连接（点一下填入）</string>
+    <string name="settings_save">保存并连接</string>
+    <string name="settings_clear">清除地址</string>
+    <string name="settings_toast_empty">请填写地址</string>
+    <string name="settings_toast_saved">已保存</string>
+    <string name="settings_toast_cleared">已清除</string>
+
+    <!-- ═══ 关于页（AboutActivity）+ 设置页的「关于」入口 ═══ -->
+    <string name="about_heading">关于 DSH Mobile</string>
+    <string name="about_version_fmt">版本 %1$s · 约 3 MB · 不含 DSH 本体</string>
+    <string name="about_intro">一个极简 WebView 容器：在你自己的手机 / 平板上，像原生 App 一样访问你自己部署的 DeepSeek Harness。\n\n不预置任何服务器地址，不采集、不上传任何数据，无广告、无统计、无第三方 SDK。</string>
+    <string name="about_section_license">开源许可</string>
+    <string name="about_license_text">本项目采用 MIT 许可证：你可以自由使用、修改、分发，甚至闭源商用，只需保留原作者的版权与许可声明。</string>
+    <string name="about_license_btn">查看完整许可证（LICENSE）</string>
+    <string name="about_section_thanks">致谢</string>
+    <string name="about_thanks_text">感谢 DeepSeek Harness —— 本 App 只是它的移动端外壳，所有能力都来自这个开源项目。</string>
+    <string name="about_dsh_btn">DeepSeek Harness 项目主页</string>
+    <string name="about_section_repo">项目</string>
+    <string name="about_repo_text">源码、问题反馈、更新日志都在 GitHub 仓库。</string>
+    <string name="about_repo_btn">打开 GitHub 仓库</string>
+    <string name="about_check_update">检查更新</string>
+    <string name="about_unknown">未知</string>
+    <string name="about_no_browser">没有可用的浏览器</string>
+
+    <!-- ═══ 快捷指令面板（QuickCommands） ═══ -->
+    <string name="qc_title">快捷指令</string>
+    <string name="qc_close">关闭</string>
+    <string name="qc_restore">恢复默认</string>
+    <string name="qc_restored">已恢复默认指令</string>
+    <string name="qc_tip">点指令 → 填入输入框（不会自动发送）。长按「改」可自定义。</string>
+    <string name="qc_empty">（空指令）</string>
+    <string name="qc_empty_warn">这条指令是空的，先点「改」写内容</string>
+    <string name="qc_edit">改</string>
+    <string name="qc_edit_title">编辑指令</string>
+    <string name="qc_save">保存</string>
+    <string name="qc_cancel">取消</string>
+    <string name="qc_copied">已复制到剪贴板</string>
+    <string name="qc_injected">已填入输入框（未发送）</string>
+    <string name="qc_no_input">没找到输入框，已复制到剪贴板</string>
+    <string name="qc_clip_label">DSH 指令</string>
+
+    <!-- ═══ 快捷指令默认模板（Prefs · 用户可编辑，仅存本机） ═══ -->
+    <string name="tpl_default_1">总结一下当前会话的要点</string>
+    <string name="tpl_default_2">继续上次未完成的任务</string>
+    <string name="tpl_default_3">把待办事项列成清单</string>
 </resources>

@@ -17,6 +17,9 @@ import android.widget.Toast;
  *
  * 展示：版本号（运行时读取，不写死）、许可、致谢、仓库入口、检查更新。
  * 本页不含任何网络请求 —— 「检查更新」只是用系统浏览器打开 Releases 页。
+ *
+ * ⚠️ 文案约定：所有「用户可见」文字一律取自 strings.xml，代码里不写中文字面量
+ *    （集中管理 = 防乱码 + 为多语言留口）。
  */
 public class AboutActivity extends Activity {
 
@@ -40,7 +43,7 @@ public class AboutActivity extends Activity {
 
         // 标题
         TextView title = new TextView(this);
-        title.setText("关于 DSH Mobile");
+        title.setText(R.string.about_heading);
         title.setTextSize(20);
         root.addView(title);
 
@@ -48,47 +51,42 @@ public class AboutActivity extends Activity {
         TextView ver = new TextView(this);
         ver.setTextSize(13);
         ver.setPadding(0, (int) (10 * d), 0, (int) (18 * d));
-        ver.setText("版本 " + appVersion() + " · 约 3 MB · 不含 DSH 本体");
+        ver.setText(getString(R.string.about_version_fmt, appVersion()));
         root.addView(ver);
 
         // 定位
         TextView what = new TextView(this);
         what.setTextSize(14);
-        what.setText("一个极简 WebView 容器：在你自己的手机 / 平板上，"
-                + "像原生 App 一样访问你自己部署的 DeepSeek Harness。\n\n"
-                + "不预置任何服务器地址，不采集、不上传任何数据，"
-                + "无广告、无统计、无第三方 SDK。");
+        what.setText(R.string.about_intro);
         root.addView(what);
 
         // 许可
-        section(root, d, "开源许可");
+        section(root, d, getString(R.string.about_section_license));
         TextView lic = new TextView(this);
         lic.setTextSize(14);
-        lic.setText("本项目采用 MIT 许可证：你可以自由使用、修改、分发，"
-                + "甚至闭源商用，只需保留原作者的版权与许可声明。");
+        lic.setText(R.string.about_license_text);
         root.addView(lic);
-        root.addView(linkButton(d, "查看完整许可证（LICENSE）", LICENSE_URL));
+        root.addView(linkButton(d, getString(R.string.about_license_btn), LICENSE_URL));
 
         // 致谢
-        section(root, d, "致谢");
+        section(root, d, getString(R.string.about_section_thanks));
         TextView thx = new TextView(this);
         thx.setTextSize(14);
-        thx.setText("感谢 DeepSeek Harness —— 本 App 只是它的移动端外壳，"
-                + "所有能力都来自这个开源项目。");
+        thx.setText(R.string.about_thanks_text);
         root.addView(thx);
-        root.addView(linkButton(d, "DeepSeek Harness 项目主页", DSH_URL));
+        root.addView(linkButton(d, getString(R.string.about_dsh_btn), DSH_URL));
 
         // 项目
-        section(root, d, "项目");
+        section(root, d, getString(R.string.about_section_repo));
         TextView repoDesc = new TextView(this);
         repoDesc.setTextSize(14);
-        repoDesc.setText("源码、问题反馈、更新日志都在 GitHub 仓库。");
+        repoDesc.setText(R.string.about_repo_text);
         root.addView(repoDesc);
-        root.addView(linkButton(d, "打开 GitHub 仓库", REPO));
+        root.addView(linkButton(d, getString(R.string.about_repo_btn), REPO));
 
         // 检查更新
         Button update = new Button(this);
-        update.setText("检查更新");
+        update.setText(R.string.about_check_update);
         LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         ulp.topMargin = (int) (8 * d);
@@ -103,9 +101,9 @@ public class AboutActivity extends Activity {
     private String appVersion() {
         try {
             PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
-            return pi.versionName == null ? "未知" : pi.versionName;
+            return pi.versionName == null ? getString(R.string.about_unknown) : pi.versionName;
         } catch (Exception e) {
-            return "未知";
+            return getString(R.string.about_unknown);
         }
     }
 
@@ -135,7 +133,7 @@ public class AboutActivity extends Activity {
         try {
             startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
         } catch (Exception e) {
-            Toast.makeText(this, "没有可用的浏览器", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.about_no_browser, Toast.LENGTH_SHORT).show();
         }
     }
 }

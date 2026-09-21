@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -12,6 +11,9 @@ import java.util.List;
  *
  * ⚠️ 隐私红线：这里所有数据**只存在本机 SharedPreferences**，
  * 不采集、不上传、不与任何第三方共享。新增字段时请保持这一条。
+ *
+ * ⚠️ 文案约定：默认模板文字取自 strings.xml（需 Context 才能取，故由
+ *    static final 常量改为 defaultTemplates(Context) 方法）。
  */
 final class Prefs {
 
@@ -25,11 +27,8 @@ final class Prefs {
     /** 连接历史最多保留条数 */
     static final int HISTORY_MAX = 5;
 
-    /** 快捷指令默认模板（用户可编辑；仅存本机） */
-    static final List<String> DEFAULT_TEMPLATES = Arrays.asList(
-            "总结一下当前会话的要点",
-            "继续上次未完成的任务",
-            "把待办事项列成清单");
+    /** 快捷指令模板条数（与 defaultTemplates 的取值个数、strings.xml 的 tpl_default_N 必须一致） */
+    static final int TEMPLATE_COUNT = 3;
 
     private Prefs() {
     }
@@ -88,11 +87,21 @@ final class Prefs {
 
     // ---------- 快捷指令模板 ----------
 
+    /** 快捷指令默认模板（用户可编辑；仅存本机）。文案见 strings.xml */
+    static List<String> defaultTemplates(Context c) {
+        List<String> d = new ArrayList<>(TEMPLATE_COUNT);
+        d.add(c.getString(R.string.tpl_default_1));
+        d.add(c.getString(R.string.tpl_default_2));
+        d.add(c.getString(R.string.tpl_default_3));
+        return d;
+    }
+
     static List<String> templates(Context c) {
         SharedPreferences sp = get(c);
+        List<String> defs = defaultTemplates(c);
         List<String> out = new ArrayList<>();
-        for (int i = 0; i < DEFAULT_TEMPLATES.size(); i++) {
-            String v = sp.getString("tpl_" + i, DEFAULT_TEMPLATES.get(i));
+        for (int i = 0; i < defs.size(); i++) {
+            String v = sp.getString("tpl_" + i, defs.get(i));
             out.add(v == null ? "" : v);
         }
         return out;
@@ -103,7 +112,7 @@ final class Prefs {
     }
 
     static void resetTemplates(Context c) {
-        for (int i = 0; i < DEFAULT_TEMPLATES.size(); i++) {
+        for (int i = 0; i < TEMPLATE_COUNT; i++) {
             get(c).edit().remove("tpl_" + i).apply();
         }
     }

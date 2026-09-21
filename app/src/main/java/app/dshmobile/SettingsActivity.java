@@ -20,6 +20,8 @@ import java.util.List;
  *
  * 只存用户自己填的地址，不预置任何服务器。
  * 下方列出「最近连接」历史（最多 5 条，纯本机），点一下即可填入。
+ *
+ * ⚠️ 文案约定：所有「用户可见」文字一律取自 strings.xml，代码里不写中文字面量。
  */
 public class SettingsActivity extends Activity {
 
@@ -37,23 +39,18 @@ public class SettingsActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("连接 DSH 服务器");
+        title.setText(R.string.settings_conn_title);
         title.setTextSize(20);
         root.addView(title);
 
         TextView hint = new TextView(this);
         hint.setTextSize(13);
         hint.setPadding(0, (int) (12 * d), 0, (int) (12 * d));
-        hint.setText("填入你自己部署的 DeepSeek Harness 地址。\n\n"
-                + "常用形式：\n"
-                + "  • 局域网：  http://<电脑IP>:3081\n"
-                + "  • 本机服务：http://127.0.0.1:3080\n\n"
-                + "提示：确认手机与该服务在同一网络；\n"
-                + "若服务端开了访问密码，打开后会要求输入。\n");
+        hint.setText(R.string.settings_conn_hint);
         root.addView(hint);
 
         EditText et = new EditText(this);
-        et.setHint("http://192.168.x.x:3081");
+        et.setHint(R.string.settings_url_hint);
         et.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
         et.setSingleLine(true);
         et.setText(Prefs.url(this));
@@ -66,7 +63,7 @@ public class SettingsActivity extends Activity {
             label.setTextSize(13);
             label.setAlpha(0.6f);
             label.setPadding(0, (int) (18 * d), 0, (int) (4 * d));
-            label.setText("最近连接（点一下填入）");
+            label.setText(R.string.settings_history_label);
             root.addView(label);
 
             for (final String h : history) {
@@ -84,7 +81,7 @@ public class SettingsActivity extends Activity {
         }
 
         Button save = new Button(this);
-        save.setText("保存并连接");
+        save.setText(R.string.settings_save);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = (int) (16 * d);
@@ -92,28 +89,28 @@ public class SettingsActivity extends Activity {
         save.setOnClickListener(v -> {
             String u = Prefs.normalize(et.getText().toString());
             if (u.isEmpty()) {
-                Toast.makeText(this, "请填写地址", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, R.string.settings_toast_empty, Toast.LENGTH_SHORT).show();
                 return;
             }
             Prefs.setUrl(this, u);
             Prefs.pushHistory(this, u);
-            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.settings_toast_saved, Toast.LENGTH_SHORT).show();
             finish();
         });
         root.addView(save);
 
         Button clear = new Button(this);
-        clear.setText("清除地址");
+        clear.setText(R.string.settings_clear);
         clear.setOnClickListener(v -> {
             Prefs.clearUrl(this);
             et.setText("");
-            Toast.makeText(this, "已清除", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.settings_toast_cleared, Toast.LENGTH_SHORT).show();
         });
         root.addView(clear);
 
         // 「关于」入口：版本 / 许可 / 致谢 / 检查更新
         Button about = new Button(this);
-        about.setText("关于 DSH Mobile");
+        about.setText(R.string.about_heading);
         about.setAllCaps(false);
         LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);

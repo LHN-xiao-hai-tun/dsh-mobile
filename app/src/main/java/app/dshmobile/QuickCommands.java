@@ -26,6 +26,8 @@ import java.util.List;
  *   2. 输入框已有内容时**追加**而不是覆盖，绝不吞掉你正在打的东西；
  *   3. 找不到输入框（弹层/iframe/结构变了）就退化为**复制到剪贴板**并提示，
  *      不做任何猜测性的盲点点击。
+ *
+ * ⚠️ 文案约定：所有「用户可见」文字一律取自 strings.xml，代码里不写中文字面量。
  */
 final class QuickCommands {
 
@@ -36,10 +38,10 @@ final class QuickCommands {
         final LinearLayout box = new LinearLayout(a);
         box.setOrientation(LinearLayout.VERTICAL);
         final AlertDialog dlg = new AlertDialog.Builder(a)
-                .setTitle("快捷指令")
+                .setTitle(R.string.qc_title)
                 .setView(box)
-                .setNegativeButton("关闭", null)
-                .setNeutralButton("恢复默认", null)
+                .setNegativeButton(R.string.qc_close, null)
+                .setNeutralButton(R.string.qc_restore, null)
                 .create();
 
         fill(a, web, dlg, box);
@@ -47,7 +49,7 @@ final class QuickCommands {
         dlg.setOnShowListener(x -> dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v -> {
             Prefs.resetTemplates(a);
             fill(a, web, dlg, box);
-            Toast.makeText(a, "已恢复默认指令", Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, R.string.qc_restored, Toast.LENGTH_SHORT).show();
         }));
 
         dlg.show();
@@ -65,7 +67,7 @@ final class QuickCommands {
         tip.setTextSize(12);
         tip.setAlpha(0.6f);
         tip.setPadding(0, 0, 0, (int) (10 * d));
-        tip.setText("点指令 → 填入输入框（不会自动发送）。长按「改」可自定义。");
+        tip.setText(R.string.qc_tip);
         box.addView(tip);
 
         final List<String> tpls = Prefs.templates(a);
@@ -82,7 +84,7 @@ final class QuickCommands {
             row.setLayoutParams(rlp);
 
             final TextView label = new TextView(a);
-            label.setText(text.isEmpty() ? "（空指令）" : text);
+            label.setText(text.isEmpty() ? a.getString(R.string.qc_empty) : text);
             label.setTextSize(15);
             label.setPadding(0, (int) (12 * d), (int) (8 * d), (int) (12 * d));
             LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(
@@ -91,7 +93,7 @@ final class QuickCommands {
             label.setOnClickListener(v -> {
                 String cur = Prefs.templates(a).get(index);
                 if (cur.trim().isEmpty()) {
-                    Toast.makeText(a, "这条指令是空的，先点「改」写内容", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(a, R.string.qc_empty_warn, Toast.LENGTH_SHORT).show();
                     return;
                 }
                 inject(a, web, cur, dlg);
@@ -99,7 +101,7 @@ final class QuickCommands {
             row.addView(label);
 
             Button edit = new Button(a);
-            edit.setText("改");
+            edit.setText(R.string.qc_edit);
             edit.setAllCaps(false);
             edit.setMinWidth((int) (52 * d));
             edit.setOnClickListener(v -> editTemplate(a, dlg, box, web, index));
@@ -122,13 +124,13 @@ final class QuickCommands {
         input.setSelection(input.getText().length());
 
         new AlertDialog.Builder(a)
-                .setTitle("编辑指令")
+                .setTitle(R.string.qc_edit_title)
                 .setView(input)
-                .setPositiveButton("保存", (dd, w) -> {
+                .setPositiveButton(R.string.qc_save, (dd, w) -> {
                     Prefs.setTemplate(a, index, input.getText().toString());
                     fill(a, web, dlg, box);
                 })
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.qc_cancel, null)
                 .show();
     }
 
@@ -137,16 +139,16 @@ final class QuickCommands {
                                final AlertDialog dlg) {
         if (web == null) {
             copy(a, text);
-            Toast.makeText(a, "已复制到剪贴板", Toast.LENGTH_SHORT).show();
+            Toast.makeText(a, R.string.qc_copied, Toast.LENGTH_SHORT).show();
             return;
         }
         web.evaluateJavascript(buildJs(text), value -> {
             boolean ok = value != null && value.contains("OK");
             if (ok) {
-                Toast.makeText(a, "已填入输入框（未发送）", Toast.LENGTH_SHORT).show();
+                Toast.makeText(a, R.string.qc_injected, Toast.LENGTH_SHORT).show();
             } else {
                 copy(a, text);
-                Toast.makeText(a, "没找到输入框，已复制到剪贴板", Toast.LENGTH_SHORT).show();
+                Toast.makeText(a, R.string.qc_no_input, Toast.LENGTH_SHORT).show();
             }
             if (dlg != null && dlg.isShowing()) {
                 dlg.dismiss();
@@ -186,7 +188,7 @@ final class QuickCommands {
         try {
             ClipboardManager cm = (ClipboardManager) a.getSystemService(Context.CLIPBOARD_SERVICE);
             if (cm != null) {
-                cm.setPrimaryClip(ClipData.newPlainText("DSH 指令", text));
+                cm.setPrimaryClip(ClipData.newPlainText(a.getString(R.string.qc_clip_label), text));
             }
         } catch (Exception ignored) {
         }
