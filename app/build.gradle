@@ -10,8 +10,8 @@ android {
         applicationId "app.dshmobile"
         minSdk 26
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.1.1"
     }
 
     buildTypes {
@@ -26,7 +26,7 @@ android {
     }
 }
 
-// 统一 Kotlin stdlib 版本，避免 appcompat 传递依赖冲突
+// Unify Kotlin stdlib version to avoid transitive conflicts from appcompat
 configurations.all {
     resolutionStrategy {
         force 'org.jetbrains.kotlin:kotlin-stdlib:1.9.24'
