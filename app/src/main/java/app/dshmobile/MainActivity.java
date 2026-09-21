@@ -14,6 +14,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -41,7 +42,7 @@ import androidx.core.splashscreen.SplashScreen;
 public class MainActivity extends Activity {
 
     /** 浮动按钮边长 / 间距 / 吸附边缘留白（dp） */
-    private static final int FAB_SIZE_DP = 40;
+    private static final int FAB_SIZE_DP = 44;
     private static final int FAB_GAP_DP = 4;
     private static final int FAB_MARGIN_DP = 8;
 
@@ -98,11 +99,25 @@ public class MainActivity extends Activity {
         fabStack.addView(fabCommands, new LinearLayout.LayoutParams(
                 (int) (FAB_SIZE_DP * dp), (int) (FAB_SIZE_DP * dp)));
 
-        root.addView(fabStack);
+        // ⚠️ 必须显式给 LayoutParams：FrameLayout 的默认值是 MATCH_PARENT，
+        //    会让小栈铺满全屏 → getWidth() 等于屏宽 → maxFabLeft() 恒为 0（拖不动），
+        //    子按钮也被顶到左上角。出厂位置直接给「右下 + 边距」，即使还原逻辑出问题
+        //    也不会掉到左上角。
+        FrameLayout.LayoutParams stackLp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.END);
+        stackLp.rightMargin = (int) (FAB_MARGIN_DP * dp);
+        stackLp.bottomMargin = (int) (FAB_MARGIN_DP * dp);
+        root.addView(fabStack, stackLp);
+        // 提升层级：即使与 WebView 区域重叠，也保证浮层先拿到触摸
+        fabStack.setElevation(Math.max(1f, dp));
+        fabStack.setClickable(true);
 
         setContentView(root);
-        // 位置要在布局完成后才能按比例还原（父容器尺寸此时才有值）
-        root.post(this::restoreFabPosition);
+        // ⚠️ 不能用 root.post()：该回调只保证「已 attach + 主线程空闲」，不保证已 measure/layout
+        //    —— 那一刻 root.getWidth() 与 fabStack.getWidth() 都是 0，比例相乘得 0 →
+        //    按钮被压到左上角（真机实测 bounds [0,165][100,265]）。改为「测量完成后再还原」。
+        restoreFabWhenMeasured();
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -135,6 +150,9 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 bar.setVisibility(View.GONE);
                 CookieManager.getInstance().flush();
+                // ⚠️ 页面加载完成后 WebView 可能重新占据层级 → 把浮层再提到最前，
+                //    否则重叠区域的触摸会被 WebView 抢走（真机实测：点在浮层内却打开了 DSH 侧边栏）。
+                if (fabStack != null) fabStack.bringToFront();
             }
 
             @Override
@@ -183,10 +201,11 @@ public class MainActivity extends Activity {
         btn.setText(glyph);
         btn.setTextSize(18);
         btn.setGravity(Gravity.CENTER);
-        btn.setTextColor(0x99FFFFFF);
-        btn.setBackgroundColor(0x33000000);
+        btn.setTextColor(0xCCFFFFFF);
+        btn.setBackgroundColor(0x4D000000);
         btn.setContentDescription(desc);
         btn.setOnClickListener(listener);
+        btn.setClickable(true);
         btn.setOnTouchListener((v, e) -> {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN:
@@ -253,14 +272,39 @@ public class MainActivity extends Activity {
         return (int) (FAB_MARGIN_DP * density);
     }
 
+    // ⚠️ 以下三个尺寸取值一律带「回退链」，**绝不返回 0**：
+    //    0 会让「比例 × 最大值」恒为 0，把浮层压到左上角（v1.2.2 真机缺陷的形态之一）。
+    private int rootWidth() {
+        if (root != null && root.getWidth() > 0) return root.getWidth();
+        if (root != null && root.getMeasuredWidth() > 0) return root.getMeasuredWidth();
+        return getResources().getDisplayMetrics().widthPixels;
+    }
+
+    private int rootHeight() {
+        if (root != null && root.getHeight() > 0) return root.getHeight();
+        if (root != null && root.getMeasuredHeight() > 0) return root.getMeasuredHeight();
+        return getResources().getDisplayMetrics().heightPixels;
+    }
+
+    /** 小栈尺寸（2 个按钮 + 1 个间距）；未测量时按 dp 估算 */
+    private int fabWidth() {
+        if (fabStack != null && fabStack.getWidth() > 0) return fabStack.getWidth();
+        if (fabStack != null && fabStack.getMeasuredWidth() > 0) return fabStack.getMeasuredWidth();
+        return (int) (FAB_SIZE_DP * density);
+    }
+
+    private int fabHeight() {
+        if (fabStack != null && fabStack.getHeight() > 0) return fabStack.getHeight();
+        if (fabStack != null && fabStack.getMeasuredHeight() > 0) return fabStack.getMeasuredHeight();
+        return (int) ((FAB_SIZE_DP * 2 + FAB_GAP_DP) * density);
+    }
+
     private int maxFabLeft() {
-        if (root == null || fabStack == null) return 0;
-        return Math.max(0, root.getWidth() - fabStack.getWidth());
+        return Math.max(0, rootWidth() - fabWidth());
     }
 
     private int maxFabTop() {
-        if (root == null || fabStack == null) return 0;
-        return Math.max(0, root.getHeight() - fabStack.getHeight() - edgeMargin());
+        return Math.max(0, rootHeight() - fabHeight() - edgeMargin());
     }
 
     private int minFabTop() {
@@ -290,8 +334,8 @@ public class MainActivity extends Activity {
     /** 松手：吸附到最近的左右边缘（小按钮不占中间挡住内容），并记住位置。 */
     private void snapFabToEdge() {
         FrameLayout.LayoutParams lp = fabLp();
-        int center = lp.leftMargin + fabStack.getWidth() / 2;
-        lp.leftMargin = center < root.getWidth() / 2
+        int center = lp.leftMargin + fabWidth() / 2;
+        lp.leftMargin = center < rootWidth() / 2
                 ? edgeMargin()
                 : Math.max(edgeMargin(), maxFabLeft() - edgeMargin());
         lp.topMargin = clampFabTop(lp.topMargin);
@@ -307,6 +351,33 @@ public class MainActivity extends Activity {
         float fx = maxL <= 0 ? 1f : (float) fabLeft() / maxL;
         float fy = maxT <= 0 ? 1f : (float) fabTop() / maxT;
         Prefs.setFab(this, fx, fy);
+    }
+
+    /**
+     * ⭐ 等「容器与浮层都真正测量完成」后再按比例还原位置。
+     *
+     * 为什么不能用 root.post()：post 只保证「已 attach + 主线程空闲」，不保证已 measure/layout
+     * —— 那时 root.getWidth() 与 fabStack.getWidth() 都是 0，比例相乘得 0，按钮被压到左上角。
+     * 这里用 OnGlobalLayoutListener：尺寸仍为 0 就等下一轮回调，成功后立刻移除监听（防重复）。
+     */
+    private void restoreFabWhenMeasured() {
+        if (root == null || fabStack == null) return;
+        final ViewTreeObserver.OnGlobalLayoutListener[] holder =
+                new ViewTreeObserver.OnGlobalLayoutListener[1];
+        holder[0] = new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                if (root.getWidth() <= 0 || fabStack.getWidth() <= 0) {
+                    return; // 还没测量好，等下一次布局回调
+                }
+                ViewTreeObserver vto = root.getViewTreeObserver();
+                if (vto.isAlive()) {
+                    vto.removeOnGlobalLayoutListener(holder[0]);
+                }
+                restoreFabPosition();
+            }
+        };
+        root.getViewTreeObserver().addOnGlobalLayoutListener(holder[0]);
     }
 
     /** 无记录时默认右下角（1,1） */
@@ -330,7 +401,14 @@ public class MainActivity extends Activity {
         super.onConfigurationChanged(newConfig);
         // 清单里声明了 configChanges（旋转不重建 Activity）→ 需手动把按钮拉回可视区
         if (fabStack != null) {
-            fabStack.post(this::reclampFab);
+            fabStack.post(() -> {
+                // 同样要等测量完成：尺寸还是 0 就别 clamp（否则会把浮层推到左上角）
+                if (root.getWidth() > 0 && fabStack.getWidth() > 0) {
+                    reclampFab();
+                } else {
+                    restoreFabWhenMeasured();
+                }
+            });
         }
     }
 

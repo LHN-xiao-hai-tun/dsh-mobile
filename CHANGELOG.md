@@ -7,7 +7,26 @@
 
 ## [未发布]
 
+## [1.2.3] - 2026-09-21
+
+> ⚠️ 本版修的是 **1.2.2 上线的浮层缺陷**（真机复现后定位）。
+
+### 修复
+
+- **浮动按钮落在左上角（每次启动都复现）** —— 两处根因**叠加**：
+  1. `root.post(this::restoreFabPosition)` 在**布局测量完成前**就执行 → 容器与浮层尺寸都还是 `0` → 「比例 × 最大值」恒为 `0` → 被压到左上角（真机实测 bounds `[0,165][100,265]`）。改为 `OnGlobalLayoutListener`：**仅当容器与浮层都真正测量完成**才还原，成功后立即移除监听；尺寸取值加**回退链**（`getWidth()` → `getMeasuredWidth()` → `DisplayMetrics`），**绝不让 0 参与比例乘法**。
+  2. `root.addView(fabStack)` **未显式给 `LayoutParams`**，而 `FrameLayout` 的默认值是 `MATCH_PARENT / MATCH_PARENT` → 小栈**铺满全屏**，`getWidth()` 等于屏宽 → `maxFabLeft()` 恒为 `0`。改为显式 `WRAP_CONTENT` + 出厂 `Gravity.BOTTOM | Gravity.END` + 边距（即使还原逻辑出问题也不会掉到左上角）。
+- **拖拽完全不动** —— 即上面第 2 条：`maxFabLeft() == 0` 时左右拖拽无位移。
+- **与 DSH 官方控件重叠区域的触摸被 WebView 抢走**（真机实测：点在浮层内却打开了 DSH 自己的侧边栏）—— 浮层加 `setElevation()` 提升层级，并在每次 `onPageFinished` 后 `bringToFront()`；`fabStack` 与两个按钮均 `setClickable(true)`。
+- **旋转屏幕后同样要等测量完成**再回拉（`onConfigurationChanged` 加守卫，避免尺寸为 0 时 clamp 把浮层推走）。
+
+### 变更
+
+- 按钮边长 `40dp → 44dp`（更好按）；文字色 `0x99FFFFFF → 0xCCFFFFFF`、底色 `0x33000000 → 0x4D000000`（更易看清）
+
 ## [1.2.2] - 2026-09-21
+
+> ⚠️ **该版浮层有缺陷**：实测落在左上角、拖拽不可用、与官方控件重叠时触摸被 WebView 抢走 —— 已在 **1.2.3** 修复。
 
 ### 修复
 - **浮动按钮与 DSH 官方 Web UI 的控件重叠**：`⚙`（设置）与 `⌘`（快捷指令）原先都钉在右上角（`Gravity.TOP|END`）浮在 WebView 之上，压住了 DSH 自己的模式选择 / ⋯ 菜单 / 省钱开关等右上角控件。现改为：
