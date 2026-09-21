@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      夜间资源（values-night）：本 App 为「常暗」设计，此处的值与 values/themes.xml 一致。
+      显式提供夜间版本有两个好处：
+        1. 防止将来新增的浅色值在夜间模式下被系统误用（夜间查找必然落在本文件）；
+        2. 让「常暗」成为写下来的约定，而不是靠默认值巧合成立。
+      ⚠️ 改动配色时两个文件必须同步。
+    -->
+    <style name="Theme.DSH" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:statusBarColor">@color/app_bg</item>
+        <item name="android:navigationBarColor">@color/app_bg</item>
+        <item name="android:windowBackground">@color/app_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

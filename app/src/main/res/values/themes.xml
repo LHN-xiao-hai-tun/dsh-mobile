@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+      DSH Mobile 采用「常暗」配色（有意设计，不是遗漏）：
+      本 App 是 WebView 容器，承载的是 DSH Web UI（深色为主），
+      容器 chrome（状态栏 / 导航栏 / 窗口底色）与其保持一致，避免明暗反差割裂。
+      ⛔ 请勿改成跟随系统的浅色主题 —— 夜间资源见 values-night/themes.xml（保持一致）。
+    -->
     <style name="Theme.DSH" parent="Theme.AppCompat.NoActionBar">
-        <item name="android:statusBarColor">#0B1220</item>
-        <item name="android:navigationBarColor">#0B1220</item>
-        <item name="android:windowBackground">#0B1220</item>
+        <item name="android:statusBarColor">@color/app_bg</item>
+        <item name="android:navigationBarColor">@color/app_bg</item>
+        <item name="android:windowBackground">@color/app_bg</item>
+
+        <!-- 深色底 → 状态栏图标保持浅色（API 23+） -->
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!--
+          关闭 Android 10+ 的「强制暗色」：WebView 里的页面自带主题，
+          再被系统二次反转会出现色偏/图片发灰。API 29 以下自动忽略。
+        -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>
