@@ -137,38 +137,58 @@ public class SettingsActivity extends Activity {
     }
 
     /**
-     * 扫描局域网并把结果交给用户选（v1.2.5）。
-     * 找到 1 个 → 直接填入；多个 → 弹列表选；0 个 → 提示排查方向。
+     * 扫描局域网并把结果交给用户选（v1.2.5 · **v1.2.6 加分级**）。
+     * 高置信唯一 → 直接填入；高置信与候选混在一起 → 高置信在前、候选带「（需确认）」后缀弹列表；
+     * 全 0 → 提示排查方向。
+     *
+     * ⭐ 为什么要分级：旧判据 `dsh || harness || deepseek` 三个都是泛词 → 实测
+     * `https://www.deepseek.com/` 会被误认成 DSH（误报实证见
+     * `建议\DSH文档\评价\dsh-mobile_HTTP误报率实测与v1.2.6清单_2026-09-22.md`）。
      */
     private void startScan(final Button scan, final EditText et) {
         scan.setEnabled(false);
         scan.setText(R.string.settings_scan_running);
-        final List<String> found = new java.util.ArrayList<>();
+        final List<String> strong = new java.util.ArrayList<>();
+        final List<String> weak = new java.util.ArrayList<>();
         LanScan.start(this, new LanScan.Callback() {
             @Override
-            public void onFound(String url) {
-                found.add(url);
-                scan.setText(getString(R.string.settings_scan_found, found.size()));
+            public void onFound(String url, boolean isStrong) {
+                if (isStrong) {
+                    strong.add(url);
+                    scan.setText(getString(R.string.settings_scan_strong_hit, strong.size()));
+                } else {
+                    weak.add(url);
+                    scan.setText(getString(R.string.settings_scan_found, strong.size() + weak.size()));
+                }
             }
 
             @Override
-            public void onDone(int total) {
+            public void onDone(int strongTotal, int weakTotal) {
                 scan.setEnabled(true);
                 scan.setText(R.string.settings_scan);
-                if (total == 0) {
+
+                if (strongTotal == 0 && weakTotal == 0) {
                     Toast.makeText(SettingsActivity.this, R.string.settings_scan_none,
                             Toast.LENGTH_LONG).show();
                     return;
                 }
-                if (total == 1) {
-                    et.setText(found.get(0));
+                // 唯一高置信 → 直接填入（v1.2.5 行为，保留）
+                if (strongTotal == 1) {
+                    et.setText(strong.get(0));
                     et.setSelection(et.getText().length());
                     return;
                 }
+                // 多个高置信 / 只有弱候选 → 弹列表：高置信在前，弱候选带后缀
+                final List<String> labels = new java.util.ArrayList<>(strong);
+                final List<String> urls = new java.util.ArrayList<>(strong);
+                for (final String w : weak) {
+                    labels.add(w + getString(R.string.settings_scan_weak_suffix));
+                    urls.add(w);
+                }
                 new AlertDialog.Builder(SettingsActivity.this)
                         .setTitle(R.string.settings_scan_pick)
-                        .setItems(found.toArray(new String[0]), (dd, which) -> {
-                            et.setText(found.get(which));
+                        .setItems(labels.toArray(new String[0]), (dd, which) -> {
+                            et.setText(urls.get(which));
                             et.setSelection(et.getText().length());
                         })
                         .setNegativeButton(R.string.qc_cancel, null)
