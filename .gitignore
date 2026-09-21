@@ -16,3 +16,8 @@ keystore.properties
 
 # 临时/测试截图（_ 前缀）不入库 —— 可能含私人会话内容
 screenshots/_*.png
+
+# tools/ 下的运行期产物
+tools/*.pid
+tools/_test.log
+tools/_test.err

@@ -55,6 +55,26 @@ dsh web --port 3080 --no-open
 
 > ⚠️ **强烈建议开启访问密码（PIN）** —— 否则同一网络下的任何设备都能操作你的电脑。
 
+### 可选 · 让手机「秒发现」电脑（mDNS）
+
+App 有两种找服务的方式：**扫子网**（默认，约 3~5 秒、只能同一子网）和 **mDNS/NSD 发现**（即时）。
+后者需要**服务端先广播** `_dsh._tcp.local`，而 DSH 本体不广播任何服务 —— 于是仓库里带了一个**零依赖**的小脚本：
+
+```bash
+# 在跑 DSH 的那台电脑上（需要 Node ≥ 18）
+node tools/mdns-announce.mjs            # 前台运行；Ctrl+C 退出
+node tools/mdns-announce.mjs --quiet    # 静音
+node tools/mdns-announce.mjs --port 3082 --name my-dsh --no-pin   # 自定义
+```
+
+跑起来后，手机打开「设置 → 扫描局域网上的 DSH」就会**几乎立刻**出现该地址（不再等全子网扫完）。
+不跑它也**不影响使用** —— 子网扫描会兜底。
+
+> 自己实现也行，但注意三个坑（脚本注释里也写了）：
+> ① **必须过滤 QR 位**，否则自己的应答会经组播回环被当成查询 → 自环放大成群播风暴；
+> ② **PTR 应答的 additional 段要带 SRV+TXT+A**，只回 PTR 时部分解析器收得到却不触发发现；
+> ③ **多网卡要按网卡分别应答**，否则客户端可能拿到一个自己不可达的地址。
+
 ### 方式 B · 手机/平板本机跑（离线可用，较慢）
 
 DSH 依赖 Linux 的 `flock`，而 Termux 的 Node 报告 `platform=android`，故需用 proot 容器：
