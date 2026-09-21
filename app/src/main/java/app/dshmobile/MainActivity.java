@@ -59,21 +59,13 @@ public class MainActivity extends Activity {
         root.addView(bar, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, (int) (2 * dp)));
 
-        settingsBtn = new TextView(this);
-        settingsBtn.setText("\u2699");
-        settingsBtn.setTextSize(17);
-        settingsBtn.setGravity(Gravity.CENTER);
-        settingsBtn.setTextColor(0x99FFFFFF);
-        settingsBtn.setBackgroundColor(0x33000000);
-        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(
-                (int) (38 * dp), (int) (38 * dp));
-        bp.gravity = Gravity.TOP | Gravity.END;
-        bp.topMargin = (int) (8 * dp);
-        bp.rightMargin = (int) (8 * dp);
-        settingsBtn.setLayoutParams(bp);
-        settingsBtn.setOnClickListener(v ->
-                startActivity(new Intent(this, SettingsActivity.class)));
+        settingsBtn = floatButton(dp, "\u2699", 8,
+                v -> startActivity(new Intent(this, SettingsActivity.class)));
         root.addView(settingsBtn);
+
+        // ⚡ 快捷指令面板（只填入输入框，绝不自动发送）
+        root.addView(floatButton(dp, "\u2318", 52,
+                v -> QuickCommands.show(MainActivity.this, web)));
 
         setContentView(root);
 
@@ -140,6 +132,25 @@ public class MainActivity extends Activity {
         });
 
         startIfConfigured();
+    }
+
+    /** 右上角悬浮小按钮（齿轮 / 快捷指令），统一尺寸与位置规则。 */
+    private TextView floatButton(float dp, String glyph, int rightMarginDp,
+                                 android.view.View.OnClickListener listener) {
+        TextView btn = new TextView(this);
+        btn.setText(glyph);
+        btn.setTextSize(17);
+        btn.setGravity(Gravity.CENTER);
+        btn.setTextColor(0x99FFFFFF);
+        btn.setBackgroundColor(0x33000000);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                (int) (38 * dp), (int) (38 * dp));
+        lp.gravity = Gravity.TOP | Gravity.END;
+        lp.topMargin = (int) (8 * dp);
+        lp.rightMargin = (int) (rightMarginDp * dp);
+        btn.setLayoutParams(lp);
+        btn.setOnClickListener(listener);
+        return btn;
     }
 
     private void toast(String msg) {
