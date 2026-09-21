@@ -6,6 +6,8 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -52,6 +54,14 @@ public class MainActivity extends Activity {
     private LinearLayout fabStack;
     private View fabSettings;
     private long lastBack = 0;
+
+    // ---------- 断线自动重连（v1.2.5）----------
+    private TextView offlineBanner;
+    private int retryStep = 0;
+    private boolean retryPending = false;
+    private ConnectivityManager.NetworkCallback netCallback;
+    /** 指数退避：1s → 2s → 4s → 8s → 15s → 30s → 60s（封顶） */
+    private static final int[] RETRY_DELAYS_MS = {1000, 2000, 4000, 8000, 15000, 30000, 60000};
 
     private float density;
     private int touchSlop;
@@ -150,6 +160,8 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView v, String url) {
                 bar.setVisibility(View.GONE);
                 CookieManager.getInstance().flush();
+                // 加载成功 → 复位退避计数并收起离线遮罩（v1.2.5）
+                onPageLoaded();
                 // ⚠️ 页面加载完成后 WebView 可能重新占据层级 → 把浮层再提到最前，
                 //    否则重叠区域的触摸会被 WebView 抢走（真机实测：点在浮层内却打开了 DSH 侧边栏）。
                 if (fabStack != null) fabStack.bringToFront();
@@ -159,7 +171,9 @@ public class MainActivity extends Activity {
             public void onReceivedError(WebView v, WebResourceRequest req,
                                         WebResourceError err) {
                 if (req.isForMainFrame()) {
-                    toast(getString(R.string.err_connect));
+                    // v1.2.5：不再只弹一次 toast —— 进入「离线遮罩 + 指数退避自动重连」。
+                    // 只对**主框架**生效：子资源（图片/接口）失败不该把整页判死。
+                    scheduleReconnect();
                 }
             }
         });
@@ -184,6 +198,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        installReconnect();
         startIfConfigured();
     }
 
@@ -412,6 +427,103 @@ public class MainActivity extends Activity {
         }
     }
 
+    // ---------- 断线自动重连（v1.2.5）----------
+
+    /**
+     * 装「离线遮罩 + 网络变化监听」。
+     *
+     * 遮罩 = 贴在**顶部**的一条横幅（不挡内容，可点即立即重试），断线时出现、连上后消失。
+     * 另注册默认网络回调：网络一恢复就**立刻**重试，不必等下一次退避到点。
+     */
+    private void installReconnect() {
+        offlineBanner = new TextView(this);
+        offlineBanner.setText(R.string.reconnect_offline);
+        offlineBanner.setTextSize(13);
+        offlineBanner.setGravity(Gravity.CENTER);
+        offlineBanner.setTextColor(0xFFFFFFFF);
+        offlineBanner.setBackgroundColor(0xE6B3261E);   // 深红：明显但不刺眼
+        offlineBanner.setPadding(0, (int) (10 * density), 0, (int) (10 * density));
+        offlineBanner.setVisibility(View.GONE);
+        offlineBanner.setClickable(true);
+        offlineBanner.setOnClickListener(v -> {
+            retryStep = 0;
+            retryPending = false;
+            hideOffline();
+            loadCurrent();
+        });
+        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP);
+        root.addView(offlineBanner, blp);
+        offlineBanner.setElevation(Math.max(2f, density));
+
+        try {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            if (cm != null) {
+                netCallback = new ConnectivityManager.NetworkCallback() {
+                    @Override
+                    public void onAvailable(Network n) {
+                        runOnUiThread(() -> {
+                            if (offlineBanner != null
+                                    && offlineBanner.getVisibility() == View.VISIBLE) {
+                                retryStep = 0;
+                                retryPending = false;
+                                loadCurrent();
+                            }
+                        });
+                    }
+                };
+                cm.registerDefaultNetworkCallback(netCallback);
+            }
+        } catch (Exception ignored) {
+            // 拿不到 ConnectivityManager 也不该让 App 起不来 —— 只是少了「网络恢复即重试」这一层
+        }
+    }
+
+    /** 主框架加载失败 → 显示遮罩 + 指数退避重试（loadUrl 不会丢 Cookie / LocalStorage） */
+    private void scheduleReconnect() {
+        if (retryPending) return;
+        retryPending = true;
+        showOffline();
+        int delay = RETRY_DELAYS_MS[Math.min(retryStep, RETRY_DELAYS_MS.length - 1)];
+        retryStep++;
+        if (bar != null) bar.setVisibility(View.GONE);
+        root.postDelayed(() -> {
+            retryPending = false;
+            loadCurrent();
+        }, delay);
+    }
+
+    /** 页面加载完成 → 复位退避计数并收起遮罩 */
+    private void onPageLoaded() {
+        retryStep = 0;
+        retryPending = false;
+        hideOffline();
+    }
+
+    /** 用「已配置地址」重载；没有则收起遮罩（交给 onResume 去引导设置页） */
+    private void loadCurrent() {
+        SharedPreferences sp = getSharedPreferences("dsh", MODE_PRIVATE);
+        String u = sp.getString("url", "").trim();
+        if (u.isEmpty()) { hideOffline(); return; }
+        bar.setVisibility(View.VISIBLE);
+        web.loadUrl(u);
+    }
+
+    private void showOffline() {
+        if (offlineBanner == null) return;
+        int n = retryStep + 1;
+        offlineBanner.setText(n <= 1
+                ? getString(R.string.reconnect_offline)
+                : getString(R.string.reconnect_retrying, n));
+        offlineBanner.setVisibility(View.VISIBLE);
+        offlineBanner.bringToFront();
+    }
+
+    private void hideOffline() {
+        if (offlineBanner != null) offlineBanner.setVisibility(View.GONE);
+    }
+
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
@@ -461,6 +573,14 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        // 注销网络回调（v1.2.5）—— 不注销会随 Activity 泄漏
+        if (netCallback != null) {
+            try {
+                ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                if (cm != null) cm.unregisterNetworkCallback(netCallback);
+            } catch (Exception ignored) { }
+            netCallback = null;
+        }
         if (web != null) {
             web.destroy();
             web = null;

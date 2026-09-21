@@ -16,7 +16,6 @@
     <!-- 主界面浮动按钮（可拖动）及其无障碍说明 -->
     <string name="fab_settings">设置（可拖动）</string>
     <string name="fab_commands">快捷指令（可拖动）</string>
-    <string name="err_connect">连不上服务器，点齿轮按钮检查地址</string>
 
     <!-- ═══ 设置页（SettingsActivity） ═══ -->
     <string name="settings_conn_title">连接 DSH 服务器</string>
@@ -45,6 +44,17 @@
     <string name="about_check_update">检查更新</string>
     <string name="about_unknown">未知</string>
     <string name="about_no_browser">没有可用的浏览器</string>
+
+    <!-- ═══ 局域网扫描（v1.2.5 · LanScan） ═══ -->
+    <string name="settings_scan">扫描局域网上的 DSH</string>
+    <string name="settings_scan_running">正在扫描局域网…</string>
+    <string name="settings_scan_found">扫描中…已找到 %1$d 个</string>
+    <string name="settings_scan_none">没找到。请确认：① 电脑上 DSH 正在运行 ② 手机与电脑连的是同一个 WiFi。</string>
+    <string name="settings_scan_pick">选择要连接的 DSH</string>
+
+    <!-- ═══ 断线自动重连（v1.2.5 · MainActivity） ═══ -->
+    <string name="reconnect_offline">连接断开 · 正在重连…（点这里立即重试）</string>
+    <string name="reconnect_retrying">连接断开 · 第 %1$d 次重连…（点这里立即重试）</string>
 
     <!-- ═══ 快捷指令面板（QuickCommands） ═══ -->
     <string name="qc_title">快捷指令</string>

@@ -1,6 +1,7 @@
 package app.dshmobile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
@@ -55,6 +56,18 @@ public class SettingsActivity extends Activity {
         et.setSingleLine(true);
         et.setText(Prefs.url(this));
         root.addView(et);
+
+        // 扫描局域网（v1.2.5）：主动探测本子网的 DSH 端口 → 一键填入，
+        // 免去"自己查电脑 IP"这一步（mDNS 需要 DSH 侧广播，故改用扫描，见 LanScan 注释）
+        Button scan = new Button(this);
+        scan.setText(R.string.settings_scan);
+        scan.setAllCaps(false);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = (int) (8 * d);
+        scan.setLayoutParams(slp);
+        scan.setOnClickListener(v -> startScan(scan, et));
+        root.addView(scan);
 
         // 最近连接：点一下填入（只读本机记录，不联网）
         List<String> history = Prefs.history(this);
@@ -121,5 +134,46 @@ public class SettingsActivity extends Activity {
         root.addView(about);
 
         setContentView(scroll);
+    }
+
+    /**
+     * 扫描局域网并把结果交给用户选（v1.2.5）。
+     * 找到 1 个 → 直接填入；多个 → 弹列表选；0 个 → 提示排查方向。
+     */
+    private void startScan(final Button scan, final EditText et) {
+        scan.setEnabled(false);
+        scan.setText(R.string.settings_scan_running);
+        final List<String> found = new java.util.ArrayList<>();
+        LanScan.start(this, new LanScan.Callback() {
+            @Override
+            public void onFound(String url) {
+                found.add(url);
+                scan.setText(getString(R.string.settings_scan_found, found.size()));
+            }
+
+            @Override
+            public void onDone(int total) {
+                scan.setEnabled(true);
+                scan.setText(R.string.settings_scan);
+                if (total == 0) {
+                    Toast.makeText(SettingsActivity.this, R.string.settings_scan_none,
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (total == 1) {
+                    et.setText(found.get(0));
+                    et.setSelection(et.getText().length());
+                    return;
+                }
+                new AlertDialog.Builder(SettingsActivity.this)
+                        .setTitle(R.string.settings_scan_pick)
+                        .setItems(found.toArray(new String[0]), (dd, which) -> {
+                            et.setText(found.get(which));
+                            et.setSelection(et.getText().length());
+                        })
+                        .setNegativeButton(R.string.qc_cancel, null)
+                        .show();
+            }
+        });
     }
 }
