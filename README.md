@@ -74,6 +74,25 @@ export ANDROID_HOME=/path/to/android-sdk
 
 ---
 
+## 与同类项目的区别
+
+`dsh-mobile` 这个名字在社区被多个项目使用，**本项目与它们的定位不同**（下表数据核验于 2026-09-21）：
+
+| 项目 | 技术栈 | 定位 | 本项目 |
+|---|---|---|---|
+| **本项目** `LHN-xiao-hai-tun/dsh-mobile` | Java + Android SDK | **极简 WebView 遥控器**：约 3 MB，**不含任何运行时**，连接你自己电脑/设备上的 DSH | — |
+| [`saya-ch/dsh-mobile`](https://github.com/saya-ch/dsh-mobile) | TypeScript | Android App + 安全远程访问插件，高度自定义的移动界面与扩展能力 | 不采用（依赖与体积更重） |
+| [`Thanksgiver233/dsh-mobile`](https://github.com/Thanksgiver233/dsh-mobile) | Kotlin | 内置 Node.js ARM64 与 dsh CLI 的**手机本地运行**方案，APK 即跑 | 不采用（本机跑 DSH 另有 proot 路线） |
+| [`jayantTang/DSH_Mobile`](https://github.com/jayantTang/DSH_Mobile) | Swift | **iOS** 客户端，WSS 经公网中转 | 不采用（平台不同） |
+
+**为什么走极简路线**
+
+- **体积**：约 **3 MB**，不占用手机存储，也不携带 Node.js 运行时
+- **隐私**：不预置服务器地址、不采集数据、无广告统计、无第三方 SDK
+- **职责单一**：只负责「让手机像原生 App 一样访问你的 DSH」；DSH 本体与插件生态留在你自己的机器上，升级互不影响
+
+---
+
 ## 隐私
 
 - **不采集、不上传任何数据**
@@ -84,4 +103,6 @@ export ANDROID_HOME=/path/to/android-sdk
 
 ## 许可
 
-MIT
+本项目采用 [MIT 许可](LICENSE)。
+
+变更记录见 [CHANGELOG.md](CHANGELOG.md)。

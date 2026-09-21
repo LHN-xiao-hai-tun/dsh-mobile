@@ -4,3 +4,9 @@ local.properties
 *.iml
 .idea/
 .DS_Store
+
+# 构建产物不入库 —— APK 一律走 GitHub Releases 分发
+*.apk
+*.aab
+*.keystore
+*.jks
