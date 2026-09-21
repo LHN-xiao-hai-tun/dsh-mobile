@@ -19,8 +19,8 @@ android {
         applicationId "app.dshmobile"
         minSdk 26
         targetSdk 34
-        versionCode 5
-        versionName "1.2.1"
+        versionCode 6
+        versionName "1.2.2"
     }
 
     signingConfigs {
@@ -46,6 +46,12 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+// ⚠️ 必须显式指定 UTF-8：Windows 中文环境下 javac 默认用 GBK 读源码，
+// 源码里的中文字符串会变成乱码（曾产出过「璁剧疆」这样的用户可见乱码标题）。
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
 
 // Unify Kotlin stdlib version to avoid transitive conflicts from appcompat

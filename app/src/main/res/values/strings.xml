@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">DSH</string>
+    <string name="app_name">DSH Mobile</string>
     <string name="settings_title">设置</string>
     <string name="about_title">关于</string>
+    <!-- 主界面浮动按钮（可拖动）及其无障碍说明 -->
+    <string name="fab_settings">设置（可拖动）</string>
+    <string name="fab_commands">快捷指令（可拖动）</string>
+    <string name="err_connect">连不上服务器，点齿轮按钮检查地址</string>
 </resources>

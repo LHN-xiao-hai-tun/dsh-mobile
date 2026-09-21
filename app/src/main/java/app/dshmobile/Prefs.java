@@ -18,6 +18,8 @@ final class Prefs {
     private static final String FILE = "dsh";
     private static final String KEY_URL = "url";
     private static final String KEY_HISTORY = "history";
+    private static final String KEY_FAB_X = "fab_x";
+    private static final String KEY_FAB_Y = "fab_y";
     private static final String SEP = "\n";
 
     /** 连接历史最多保留条数 */
@@ -104,6 +106,32 @@ final class Prefs {
         for (int i = 0; i < DEFAULT_TEMPLATES.size(); i++) {
             get(c).edit().remove("tpl_" + i).apply();
         }
+    }
+
+    // ---------- 浮动按钮位置 ----------
+
+    /**
+     * 返回 {fx, fy}，为「可移动范围的比例」(0~1)；无记录时默认 {1, 1} → 右下角。
+     * 存比例而非像素：旋转屏幕 / 换密度后位置依然合理。
+     */
+    static float[] fab(Context c) {
+        SharedPreferences sp = get(c);
+        return new float[]{clamp01(sp.getFloat(KEY_FAB_X, 1f)),
+                clamp01(sp.getFloat(KEY_FAB_Y, 1f))};
+    }
+
+    static void setFab(Context c, float fx, float fy) {
+        get(c).edit()
+                .putFloat(KEY_FAB_X, clamp01(fx))
+                .putFloat(KEY_FAB_Y, clamp01(fy))
+                .apply();
+    }
+
+    private static float clamp01(float v) {
+        if (Float.isNaN(v)) {
+            return 1f;
+        }
+        return Math.max(0f, Math.min(1f, v));
     }
 
     // ---------- 工具 ----------
