@@ -1,6 +1,7 @@
 package app.dshmobile;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.InputType;
@@ -86,6 +87,18 @@ public class SettingsActivity extends Activity {
             Toast.makeText(this, "已清除", Toast.LENGTH_SHORT).show();
         });
         root.addView(clear);
+
+        // 「关于」入口：版本 / 许可 / 致谢 / 检查更新
+        Button about = new Button(this);
+        about.setText("关于 DSH Mobile");
+        about.setAllCaps(false);
+        LinearLayout.LayoutParams alp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        alp.topMargin = (int) (28 * d);
+        about.setLayoutParams(alp);
+        about.setOnClickListener(v ->
+                startActivity(new Intent(this, AboutActivity.class)));
+        root.addView(about);
 
         setContentView(scroll);
     }
