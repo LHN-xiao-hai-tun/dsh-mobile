@@ -1,0 +1,74 @@
+name: 🐞 Bug 报告
+description: 报告一个可复现的问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请尽量填全，尤其是**机型**与**DSH 版本** —— 多数问题出在连接方式与版本匹配上。
+
+        ⚠️ **请勿粘贴你的服务器地址、访问密码或任何密钥。** 需要地址时用 `192.168.x.x` 这类占位即可。
+  - type: input
+    id: app_version
+    attributes:
+      label: DSH Mobile 版本
+      description: 在「设置 → 关于 DSH Mobile」里可以看到
+      placeholder: 例如 1.2.0
+    validations:
+      required: true
+  - type: input
+    id: dsh_version
+    attributes:
+      label: DSH（DeepSeek Harness）版本
+      description: 服务端跑的那个版本
+      placeholder: 例如 0.1.5-rc.2
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: DSH 跑在哪里
+      options:
+        - 电脑局域网（dsh-pocket，3081）
+        - 电脑本机端口（3080）
+        - 手机 / 平板本机 proot 容器（127.0.0.1:3080）
+        - 其他 / 不确定
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 机型
+      placeholder: 例如 荣耀 CHG-W60（平板）
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android 版本
+      placeholder: 例如 Android 16（API 36）
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 App
+        2. 填入地址 …
+        3. 看到 …
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 期望结果 / 实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: 截图或补充信息（可选）
+    validations:
+      required: false
