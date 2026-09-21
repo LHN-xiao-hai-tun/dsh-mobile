@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- v1.2.7：mDNS/NSD 组播发现需要 MulticastLock（部分机型不收组播）—— 仅局域网内监听，
+         不申请定位/近场权限（那类权限用于 SSID 读取，本 App 不需要）。 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <application
         android:label="@string/app_name"

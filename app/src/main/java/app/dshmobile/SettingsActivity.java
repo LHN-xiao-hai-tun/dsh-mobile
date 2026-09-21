@@ -147,7 +147,7 @@ public class SettingsActivity extends Activity {
      */
     private void startScan(final Button scan, final EditText et) {
         scan.setEnabled(false);
-        scan.setText(R.string.settings_scan_running);
+        scan.setText(R.string.settings_scan_discovering);   // v1.2.7：先试 mDNS 快路径（命中通常 ≤1 秒）
         final List<String> strong = new java.util.ArrayList<>();
         final List<String> weak = new java.util.ArrayList<>();
         LanScan.start(this, new LanScan.Callback() {

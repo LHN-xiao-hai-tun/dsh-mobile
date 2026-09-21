@@ -54,6 +54,8 @@
     <!-- v1.2.6 · HTTP 特征分级（LanScan.classify）：命中强特征=直接列为 DSH；仅命中泛词=候选，标注需确认 -->
     <string name="settings_scan_weak_suffix">（需确认）</string>
     <string name="settings_scan_strong_hit">扫描中…已找到 %1$d 个 DSH</string>
+    <!-- v1.2.7 · mDNS/NSD 快路径：先在局域网内发现（通常 ≤1 秒），失败静默降级为子网扫描 -->
+    <string name="settings_scan_discovering">正在发现…</string>
 
     <!-- ═══ 断线自动重连（v1.2.5 · MainActivity） ═══ -->
     <string name="reconnect_offline">连接断开 · 正在重连…（点这里立即重试）</string>

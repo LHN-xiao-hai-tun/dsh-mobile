@@ -1,6 +1,10 @@
 package app.dshmobile;
 
 import android.app.Activity;
+import android.content.Context;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -15,25 +19,31 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 局域网扫描发现（v1.2.5）
+ * 局域网发现（v1.2.5 子网扫描 · **v1.2.7 加 mDNS/NSD 快路径**）
  *
- * ⚠️ **为什么不用 mDNS**：mDNS / NSD 发现需要**服务端广播** `_dsh._tcp.local`，
- * 而 DSH 侧目前**不广播任何服务**（要改 DSH 源码或写插件才行）——
- * 所以纯 App 侧做 mDNS 会**扫不到任何东西**。改为**主动扫本机子网的常见端口**：
- * 同样是一键发现，但**不需要动 DSH 一行代码**。
+ * 两条路径**并集去重**：
+ *   ① **mDNS/NSD 快路径**——发现 `_dsh._tcp.` 服务（DSH 端广播，端口由 SRV 记录给出）。
+ *      服务类型本身就是 DSH 自报 → 命中按**高置信（strong=true）**回调，
+ *      且**命中后提前收摊子网扫描**（用户感知"秒出"）。
+ *   ② **子网扫描兜底**——254 主机 × 2 端口，TCP 快筛 + HTTP 特征分级。
+ *      ⚠️ **必须保留**：mDNS 会被 AP 隔离 / 路由器 IGMP snooping 挡掉，不能变成单点。
  *
  * 隐私口径（与本 App 其它部分一致）：
- *   · 只在本机所在子网内做 **TCP 连接探测**（连上即断，**不发送任何应用层数据**）
+ *   · 只在局域网内探测（NSD 被动监听组播；子网扫描连上即断，不发送应用层数据）
  *   · 结果只留在内存里交给调用方，**不上传、不落盘、无第三方**
  *
- * 性能：254 主机 × 2 端口 = 508 次探测，48 线程 / 单次 350ms 超时 → 约 3~5 秒扫完。
+ * 性能：NSD 命中通常 **≤1 秒**；子网扫描 254 主机 × 2 端口 = 508 次探测，
+ * 48 线程 / 单次 350ms 超时 → 约 3~5 秒（NSD 命中后立即收摊）。
  */
 final class LanScan {
 
@@ -49,6 +59,27 @@ final class LanScan {
     /** HTTP 验证阶段：读超时 / 读取字节上限（只看特征，读一点点就够） */
     private static final int HTTP_READ_TIMEOUT_MS = 900;
     private static final int PROBE_BYTES = 4096;
+
+    /* ---------- v1.2.7 · mDNS/NSD 快路径 ---------- */
+    /** 服务类型（与 DSH 端广播契约一致；注意结尾的点） */
+    private static final String NSD_SERVICE_TYPE = "_dsh._tcp.";
+    /** NSD 发现总时长上限：到点收摊，不拖住 {@link Callback#onDone} */
+    private static final long NSD_TIMEOUT_MS = 8000;
+    /** 首次命中后的宽限：留一点时间收其余实例，然后收摊 */
+    private static final long NSD_GRACE_MS = 1200;
+
+    /** 结果出口（两条路径共用一个出口 → 去重 + 计数 + 提前收摊信号都在这里收口） */
+    private interface Reporter {
+        void report(String url, boolean strong);
+
+        /** 请求子网扫描提前收摊（mDNS 已命中） */
+        void stopSubnetScan();
+    }
+
+    /** 可重复调用的收摊动作（停发现 + 释放 MulticastLock + 结束本路径） */
+    private interface Session {
+        void stop();
+    }
 
     interface Callback {
         /**
@@ -71,50 +102,197 @@ final class LanScan {
 
     static void start(final Activity a, final Callback cb) {
         final Handler ui = new Handler(Looper.getMainLooper());
-        new Thread(() -> {
-            final String prefix = subnetPrefix();
-            if (prefix == null) {
-                // 没连 WiFi / 拿不到子网 —— 直接告知"没找到"，不抛异常
-                ui.post(() -> cb.onDone(0, 0));
-                return;
-            }
-            final AtomicInteger strongCount = new AtomicInteger(0);
-            final AtomicInteger weakCount = new AtomicInteger(0);
-            final AtomicInteger remaining = new AtomicInteger(254 * PORTS.length);
-            final ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+        final Set<String> seen = Collections.synchronizedSet(new HashSet<String>());
+        final AtomicInteger strongCount = new AtomicInteger(0);
+        final AtomicInteger weakCount = new AtomicInteger(0);
+        final AtomicInteger pendingPaths = new AtomicInteger(0);
+        final AtomicBoolean doneSent = new AtomicBoolean(false);
+        final AtomicBoolean stopSubnet = new AtomicBoolean(false);
+        // NSD 收摊动作要在回调里用，但回调异步晚于赋值 → 用单元素持有器打破循环引用
+        final Session[] nsdSession = new Session[1];
 
+        final Reporter reporter = new Reporter() {
+            @Override
+            public void report(String url, boolean strong) {
+                if (url == null || !seen.add(url)) return;   // 并集去重：同一 host:port 只报一次
+                if (strong) strongCount.incrementAndGet();
+                else weakCount.incrementAndGet();
+                ui.post(() -> cb.onFound(url, strong));
+                if (strong) {
+                    stopSubnetScan();                        // mDNS 命中 → 子网扫描提前收摊
+                    final Session s = nsdSession[0];
+                    if (s != null) ui.postDelayed(s::stop, NSD_GRACE_MS);
+                }
+            }
+
+            @Override
+            public void stopSubnetScan() {
+                stopSubnet.set(true);
+            }
+        };
+
+        final Runnable finishPath = () -> {
+            if (pendingPaths.decrementAndGet() == 0 && doneSent.compareAndSet(false, true)) {
+                ui.post(() -> cb.onDone(strongCount.get(), weakCount.get()));
+            }
+        };
+
+        final String prefix = subnetPrefix();
+        // ⚠️ 先定总路径数再启动：否则任一路径**同步降级**会提前把 onDone 发出去，后续结果就成了"事后到货"
+        pendingPaths.set(prefix == null ? 1 : 2);
+
+        // ① 快路径：mDNS/NSD（拿不到 NsdManager / 组播被挡 → 静默降级）
+        nsdSession[0] = startNsd(a, ui, reporter, finishPath);
+
+        // ② 兜底路径：子网扫描（必须保留 —— mDNS 被 AP 隔离时不能变成单点）
+        if (prefix == null) return;
+        new Thread(() -> runSubnetScan(prefix, reporter, stopSubnet, finishPath), "lan-scan").start();
+    }
+
+    /**
+     * 子网扫描（兜底路径）：TCP 快筛 + HTTP 特征分级。
+     * `stop` 置位后后续任务立即返回 → 整条路径快速收摊，但**不影响** mDNS 已拿到的结果。
+     */
+    private static void runSubnetScan(final String prefix, final Reporter reporter,
+                                      final AtomicBoolean stop, final Runnable onPathDone) {
+        final ExecutorService pool = Executors.newFixedThreadPool(THREADS);
+        try {
             for (int i = 1; i <= 254; i++) {
                 final String host = prefix + i;
                 for (final int port : PORTS) {
                     pool.execute(() -> {
-                        try {
-                            int tier = classify(host, port);
-                            if (tier != TIER_NONE) {
-                                final String url = "http://" + host + ":" + port;
-                                final boolean strong = (tier == TIER_DSH);
-                                if (strong) strongCount.incrementAndGet();
-                                else weakCount.incrementAndGet();
-                                ui.post(() -> cb.onFound(url, strong));
-                            }
-                        } finally {
-                            if (remaining.decrementAndGet() == 0) {
-                                ui.post(() -> cb.onDone(strongCount.get(), weakCount.get()));
-                            }
+                        if (stop.get()) return;
+                        int tier = classify(host, port);
+                        if (tier != TIER_NONE) {
+                            reporter.report("http://" + host + ":" + port, tier == TIER_DSH);
                         }
                     });
                 }
             }
             pool.shutdown();
             try {
-                pool.awaitTermination(TOTAL_WAIT_SECONDS, TimeUnit.SECONDS);
+                if (!pool.awaitTermination(TOTAL_WAIT_SECONDS, TimeUnit.SECONDS)) pool.shutdownNow();
             } catch (InterruptedException ignored) {
                 Thread.currentThread().interrupt();
             }
-            // 兜底：万一有线程卡死没把 remaining 减到 0，也要给调用方一个结束信号
-            if (remaining.get() > 0) {
-                ui.post(() -> cb.onDone(strongCount.get(), weakCount.get()));
+        } finally {
+            onPathDone.run();
+        }
+    }
+
+    /**
+     * mDNS/NSD 快路径：发现 `_dsh._tcp.` 并解析出 host/port。
+     *
+     * 服务类型是 DSH 端**自报**的 → 命中即按**高置信**回调（强于 HTTP 特征猜测）。
+     * 任何失败/不可用一律**静默降级**：不抛异常、不阻塞、不影响子网扫描。
+     */
+    @SuppressWarnings("deprecation")
+    private static Session startNsd(final Activity a, final Handler ui,
+                                    final Reporter reporter, final Runnable onPathDone) {
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        final NsdManager[] mgr = new NsdManager[1];
+        final NsdManager.DiscoveryListener[] listener = new NsdManager.DiscoveryListener[1];
+        final WifiManager.MulticastLock[] lockRef = new WifiManager.MulticastLock[1];
+
+        final Session session = () -> {
+            if (!closed.compareAndSet(false, true)) return;
+            try {
+                if (mgr[0] != null && listener[0] != null) mgr[0].stopServiceDiscovery(listener[0]);
+            } catch (Exception ignored) { }
+            try {
+                if (lockRef[0] != null && lockRef[0].isHeld()) lockRef[0].release();
+            } catch (Exception ignored) { }
+            onPathDone.run();
+        };
+
+        try {
+            Context ctx = a.getApplicationContext();
+            if (ctx == null) {
+                session.stop();
+                return session;
             }
-        }, "lan-scan").start();
+            NsdManager nsd = (NsdManager) ctx.getSystemService(Context.NSD_SERVICE);
+            if (nsd == null) {
+                session.stop();
+                return session;
+            }
+            mgr[0] = nsd;
+
+            // 组播锁：部分机型不持锁收不到 mDNS 应答；拿不到就继续（不致命）
+            try {
+                WifiManager wm = (WifiManager) ctx.getApplicationContext()
+                        .getSystemService(Context.WIFI_SERVICE);
+                if (wm != null) {
+                    WifiManager.MulticastLock lock = wm.createMulticastLock("dsh-lan-scan");
+                    lock.setReferenceCounted(false);
+                    lock.acquire();
+                    lockRef[0] = lock;
+                }
+            } catch (Exception ignored) { }
+
+            listener[0] = new NsdManager.DiscoveryListener() {
+                @Override
+                public void onDiscoveryStarted(String type) { }
+
+                @Override
+                public void onStartDiscoveryFailed(String type, int code) {
+                    session.stop();   // 起不来 → 立刻收摊，交给子网扫描兜底
+                }
+
+                @Override
+                public void onDiscoveryStopped(String type) { }
+
+                @Override
+                public void onStopDiscoveryFailed(String type, int code) { }
+
+                @Override
+                public void onServiceLost(NsdServiceInfo info) { }
+
+                @Override
+                public void onServiceFound(NsdServiceInfo info) {
+                    try {
+                        mgr[0].resolveService(info, new NsdManager.ResolveListener() {
+                            @Override
+                            public void onResolveFailed(NsdServiceInfo i, int code) {
+                                // 解析失败就放弃这一个实例（子网扫描仍会兜底）
+                            }
+
+                            @Override
+                            public void onServiceResolved(NsdServiceInfo resolved) {
+                                int port = resolved.getPort();
+                                if (port <= 0) return;
+                                String host = hostOf(resolved);
+                                if (host == null) return;
+                                reporter.report("http://" + host + ":" + port, true);
+                            }
+                        });
+                    } catch (Exception ignored) { }
+                }
+            };
+            nsd.discoverServices(NSD_SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener[0]);
+            ui.postDelayed(session::stop, NSD_TIMEOUT_MS);   // 到时收摊
+        } catch (Exception ignored) {
+            session.stop();
+        }
+        return session;
+    }
+
+    /**
+     * 取解析后的主机地址（只收 IPv4：地址栏与 HTTP 都走 IPv4）。
+     * ⚠️ `getHost()` 在 API 34 已 deprecated，但 minSdk 26 只能用它——
+     * `getHostAddresses()` 需要 API 34，为它抬 minSdk 不值得。
+     */
+    private static String hostOf(NsdServiceInfo info) {
+        try {
+            InetAddress addr = info.getHost();
+            if (addr == null) return null;
+            String host = addr.getHostAddress();
+            if (host == null || host.isEmpty()) return null;
+            if (host.indexOf(':') >= 0) return null;   // 排除 IPv6
+            return host;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
