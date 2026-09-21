@@ -26,10 +26,14 @@
 | 特性 | 说明 |
 |---|---|
 | **全屏** | 无浏览器地址栏，与原生 App 一致 |
+| **启动页** | 官方 SplashScreen API，深色底 + DSH 图标，不再白屏 |
 | **返回键** | 网页后退 / 双击退出 |
 | **麦克风·摄像头** | 自动授权（语音输入可用） |
 | **登录态持久** | Cookie 自动保存，不必反复登录 |
 | **右上角 ⚙** | 随时切换服务器地址 |
+| **连接历史** | 记住最近 5 个地址，点一下填入（只存本机） |
+| **⌘ 快捷指令** | 3 条可编辑的常用提示，一键填入输入框（**只填入，不发送**） |
+| **关于页** | 版本 / 许可 / 致谢 / 检查更新 |
 | **首次引导** | 未填地址时自动进入设置页 |
 | **连不上有提示** | 不会静默白屏 |
 
@@ -80,12 +84,15 @@ dsh web --port 3080 --no-open
 
 ```bash
 # 需要 JDK 17+ 与 Android SDK（platform-34 + build-tools 34.0.0）
-export ANDROID_HOME=/path/to/android-sdk
+# 仓库自带 gradle wrapper（Gradle 8.9）
 ./gradlew assembleDebug
 # 产物：app/build/outputs/apk/debug/app-debug.apk
 ```
 
 也可用系统 Gradle：`gradle assembleDebug`。
+打 Release 包：`./gradlew assembleRelease`（当前用 debug 签名，如需正式分发请自行配置签名）。
+
+推送 / PR 会自动跑一次 `assembleDebug`（见 [`.github/workflows/build.yml`](.github/workflows/build.yml)）。
 
 ---
 
@@ -111,8 +118,15 @@ export ANDROID_HOME=/path/to/android-sdk
 ## 隐私
 
 - **不采集、不上传任何数据**
-- 只在本机 `SharedPreferences` 保存你填的服务器地址
+- 只在本机 `SharedPreferences` 保存：你填的服务器地址、最近 5 条连接历史、快捷指令模板
+- **App 自身唯一的网络行为**就是访问你填的那个地址；「检查更新」也只是交给系统浏览器打开 GitHub 页面
 - 无广告、无统计、无第三方 SDK
+
+---
+
+## 贡献
+
+欢迎提 Issue / PR —— 动手前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)，尤其是**隐私与体积红线**（不引第三方 SDK、不上报、不预置地址、保持 Java、注意体积）。
 
 ---
 

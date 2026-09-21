@@ -7,6 +7,30 @@
 
 ## [未发布]
 
+## [1.2.0] - 2026-09-21
+
+### 新增
+- **启动页**：改用 Android 官方 SplashScreen API（深色底 + 官方 DSH 图标），不再是一片空白
+- **「关于」页**（设置页底部进入）：版本号（运行时读取）、MIT 许可说明、致谢 DeepSeek Harness、GitHub 仓库入口、「检查更新」按钮
+- **连接历史**：自动记录最近 **5** 个连接过的地址（去重），设置页里点一下即可填入
+- **快捷指令面板**（主界面 ⌘ 按钮）：3 条**可编辑**的常用提示，点一下填入 DSH 输入框
+- **GitHub Actions 自动构建**：push / PR 时自动 `assembleDebug` 并上传 APK 产物
+- Issue / PR 模板、`CONTRIBUTING.md`
+
+### 修复
+- **设置页在「最近任务」里的标题是乱码**（`璁剧疆`，应为「设置」）—— manifest 的 label 编码错误，已改为字符串资源
+- **gradle wrapper 残缺**：仓库只有 `gradlew.bat`，缺 `gradlew` 与 `gradle-wrapper.jar`，导致 README 里写的 `./gradlew assembleDebug` 与 CI 都无法运行 —— 已补全
+
+### 变更
+- 深色模式**显式化**：新增 `values-night/themes.xml`；关闭 Android 10+ 的「强制暗色」二次反转（`forceDarkAllowed=false`），避免 WebView 内容色偏
+- 颜色收敛为单一色源（`@color/app_bg`），主题里不再写死色值
+- 应用名与各页面标题统一走 `strings.xml`
+- 版本号 `1.1.1` → `1.2.0`（`versionCode` 3 → 4）
+
+### 说明
+- 快捷指令**只填入、绝不代替你发送**；输入框已有内容时**追加**而非覆盖；找不到输入框时退化为复制到剪贴板
+- 连接历史与指令模板**只存本机 SharedPreferences**，不采集、不上传
+
 ## [1.1.1] - 2026-09-21
 
 ### 变更
@@ -32,6 +56,7 @@
 
 v1.1 之前的内部构建使用旧包名，未在本仓库发布 Release，故不在此记录。
 
-[未发布]: https://github.com/LHN-xiao-hai-tun/dsh-mobile/compare/v1.1.1...HEAD
+[未发布]: https://github.com/LHN-xiao-hai-tun/dsh-mobile/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/LHN-xiao-hai-tun/dsh-mobile/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/LHN-xiao-hai-tun/dsh-mobile/compare/v1.1...v1.1.1
 [1.1]: https://github.com/LHN-xiao-hai-tun/dsh-mobile/releases/tag/v1.1
