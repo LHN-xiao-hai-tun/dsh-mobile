@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 简约 DSH 字标：三条水平线 + 一个圆点 -->
+    <path
+        android:fillColor="#4F9CF9"
+        android:pathData="M28,40 h36 a4,4 0 0 1 0,8 h-36 a4,4 0 0 1 0,-8 z" />
+    <path
+        android:fillColor="#4F9CF9"
+        android:pathData="M28,52 h52 a4,4 0 0 1 0,8 h-52 a4,4 0 0 1 0,-8 z" />
+    <path
+        android:fillColor="#4F9CF9"
+        android:pathData="M28,64 h24 a4,4 0 0 1 0,8 h-24 a4,4 0 0 1 0,-8 z" />
+    <path
+        android:fillColor="#7BE3B6"
+        android:pathData="M76,64 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+</vector>
