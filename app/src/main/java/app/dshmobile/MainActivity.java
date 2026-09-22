@@ -2,13 +2,15 @@ package app.dshmobile;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.res.Configuration;
 import android.graphics.Rect;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.Uri;
+import android.net.http.SslCertificate;
+import android.net.http.SslError;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -19,6 +21,7 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
+import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -33,6 +36,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.core.splashscreen.SplashScreen;
+
+import java.security.MessageDigest;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * DSH Mobile · 轻量 WebView 容器
@@ -137,9 +144,25 @@ public class MainActivity extends Activity {
         s.setUseWideViewPort(true);
         s.setSupportZoom(false);
         s.setBuiltInZoomControls(false);
+        // 保留 false：DSH 侧有 TTS / 语音播报，收紧成 true 会变成"必须手动点一下才响"（回归）
         s.setMediaPlaybackRequiresUserGesture(false);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        // v1.3.0 加固：原为 MIXED_CONTENT_ALWAYS_ALLOW（见 v1.2.2 黑屏排查）。
+        // 实测本 App 的页本身就是 http（明文页），混合内容模式对它**不生效**，
+        // 收紧成 NEVER_ALLOW 不影响局域网用法，却能挡住"https 页里偷偷加载 http 资源"。
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+
+        // ---------- v1.3.0 · WebView 加固 ----------
+        // 页面是远程 DSH，不需要任何本地文件能力；关掉即缩小攻击面（不影响 Web 功能）。
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setAllowFileAccessFromFileURLs(false);
+        s.setAllowUniversalAccessFromFileURLs(false);
+        s.setSavePassword(false);                 // 凭据交给 DSH 自己管，不落 WebView 的密码库
+        s.setGeolocationEnabled(false);
+        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setSupportMultipleWindows(false);
+        // ⚠️ 不调用 addJavascriptInterface —— 一旦注入 JS 桥，WebView 里的任何内容都能调原生代码。
 
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
@@ -176,6 +199,36 @@ public class MainActivity extends Activity {
                     scheduleReconnect();
                 }
             }
+
+            /**
+             * v1.3.0 · 证书校验（TOFU = Trust On First Use）
+             *
+             * ⚠️ 铁律：**绝不无条件 `handler.proceed()`**。三条分支各有明确出口：
+             *   ① 首次见到该 host 的证书 → 亮出指纹让用户自己核对，确认后才记住并放行；
+             *   ② 指纹与记住的一致     → 放行（自签证书的正常复连路径）；
+             *   ③ 指纹变了            → **强警告**（可能换了证书/中间人），默认取消，要再点一次才信任。
+             * 拿不到指纹（极少数机型）→ 一律取消，绝不放行。
+             *
+             * 注：本方法只在**系统信任链已失败**时才被调用；证书正常的 https 不会走到这里。
+             */
+            @Override
+            public void onReceivedSslError(WebView v, SslErrorHandler handler, SslError error) {
+                final String host = NetPolicy.hostOf(error.getUrl());
+                final String fp = fingerprintOf(error.getCertificate());
+                if (fp.isEmpty()) {
+                    handler.cancel();
+                    toast(getString(R.string.ssl_unknown_cert));
+                    return;
+                }
+                String remembered = Prefs.trustedFingerprint(MainActivity.this, host);
+                if (fp.equals(remembered)) {
+                    handler.proceed();                                   // ② 已信任且未变
+                } else if (remembered == null) {
+                    askTrustFirstTime(host, fp, error, handler);          // ① 首次
+                } else {
+                    askTrustChanged(host, fp, remembered, handler);       // ③ 变更
+                }
+            }
         });
 
         web.setWebChromeClient(new WebChromeClient() {
@@ -187,7 +240,27 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPermissionRequest(final PermissionRequest request) {
-                runOnUiThread(() -> request.grant(request.getResources()));
+                // v1.3.0：原来是无条件 grant(全部资源)。现在只对**你配置的那个主机**放行
+                // 麦克风/摄像头 —— 万一页面被换成别家站点，不再自动把设备权限交出去。
+                String originHost = request.getOrigin() == null ? "" : request.getOrigin().getHost();
+                String allowedHost = NetPolicy.hostOf(Prefs.url(MainActivity.this));
+                if (originHost.isEmpty() || !originHost.equalsIgnoreCase(allowedHost)) {
+                    runOnUiThread(request::deny);
+                    return;
+                }
+                java.util.List<String> grant = new java.util.ArrayList<>();
+                for (String r : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(r)
+                            || PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(r)) {
+                        grant.add(r);   // 其余（如受保护媒体）一律不给
+                    }
+                }
+                if (grant.isEmpty()) {
+                    runOnUiThread(request::deny);
+                    return;
+                }
+                final String[] g = grant.toArray(new String[0]);
+                runOnUiThread(() -> request.grant(g));
             }
 
             @Override
@@ -503,11 +576,9 @@ public class MainActivity extends Activity {
 
     /** 用「已配置地址」重载；没有则收起遮罩（交给 onResume 去引导设置页） */
     private void loadCurrent() {
-        SharedPreferences sp = getSharedPreferences("dsh", MODE_PRIVATE);
-        String u = sp.getString("url", "").trim();
+        String u = Prefs.url(this);
         if (u.isEmpty()) { hideOffline(); return; }
-        bar.setVisibility(View.VISIBLE);
-        web.loadUrl(u);
+        loadUrlWithPolicy(u);
     }
 
     private void showOffline() {
@@ -524,31 +595,180 @@ public class MainActivity extends Activity {
         if (offlineBanner != null) offlineBanner.setVisibility(View.GONE);
     }
 
+    // ---------- v1.3.0 · 连接前安全策略 ----------
+
+    /** 策略对话框是否正在显示（防止退避重连 / onResume 反复弹） */
+    private boolean policyDialogShowing = false;
+
+    /**
+     * **所有**"要加载地址"的入口都走这里，统一过一遍安全策略。
+     *
+     * 判定见 {@link NetPolicy#verdict}：
+     *   OK           —— https，或已确认过 → 直接放行，不打扰；
+     *   CONFIRM_ONCE —— 私有网段明文（本 App 的典型用法）：告知是明文，**首次确认一次**；
+     *   BLOCK_STRONG —— 公网 + 明文：**默认拦下**，要用户明确接受风险才继续。
+     *
+     * ⚠️ 注意：这里拦不住"用户在网页里自己跳到公网明文站点"（那是 WebView 内部导航），
+     *    只拦 App 侧的入口地址。
+     */
+    private void loadUrlWithPolicy(String url) {
+        final String u = Prefs.normalize(url);
+        if (u.isEmpty()) {
+            hideOffline();
+            return;
+        }
+        final String host = NetPolicy.hostOf(u);
+        NetPolicy.Verdict v = NetPolicy.verdict(u);
+
+        if (v == NetPolicy.Verdict.OK || Prefs.isAcked(this, host)) {
+            reallyLoad(u);
+            return;
+        }
+        if (policyDialogShowing || isFinishing()) {
+            return;
+        }
+        policyDialogShowing = true;
+
+        boolean strong = (v == NetPolicy.Verdict.BLOCK_STRONG);
+        new AlertDialog.Builder(this)
+                .setCancelable(false)
+                .setTitle(strong ? R.string.sec_public_title : R.string.sec_first_title)
+                .setMessage(strong ? getString(R.string.sec_public_msg, u, host)
+                        : getString(R.string.sec_first_msg, u, host))
+                .setPositiveButton(strong ? R.string.sec_public_continue : R.string.sec_continue,
+                        (d, w) -> {
+                            policyDialogShowing = false;
+                            Prefs.ackHost(this, host);
+                            reallyLoad(u);
+                        })
+                .setNegativeButton(R.string.qc_cancel, (d, w) -> {
+                    policyDialogShowing = false;
+                    hideOffline();
+                })
+                .setOnCancelListener(d -> {
+                    policyDialogShowing = false;
+                    hideOffline();
+                })
+                .show();
+    }
+
+    private void reallyLoad(String url) {
+        if (bar != null) bar.setVisibility(View.VISIBLE);
+        web.loadUrl(url);
+    }
+
+    // ---------- v1.3.0 · 证书指纹 ----------
+
+    /**
+     * 证书 SHA-256 指纹（`AA:BB:…`）。
+     *
+     * `SslCertificate` 不直接给 X509，但 {@link SslCertificate#saveState} 的 Bundle 里
+     * 有 DER 编码的证书（键 `x509-certificate`）—— 对它做 SHA-256 即为常见意义上的
+     * "证书指纹"（与浏览器/openssl 显示的同一个值）。
+     */
+    private static String fingerprintOf(SslCertificate cert) {
+        if (cert == null) {
+            return "";
+        }
+        try {
+            Bundle st = SslCertificate.saveState(cert);
+            if (st == null) {
+                return "";
+            }
+            byte[] der = st.getByteArray("x509-certificate");
+            if (der == null || der.length == 0) {
+                return "";
+            }
+            byte[] h = MessageDigest.getInstance("SHA-256").digest(der);
+            StringBuilder sb = new StringBuilder(h.length * 3);
+            for (int i = 0; i < h.length; i++) {
+                if (i > 0) sb.append(':');
+                sb.append(String.format(Locale.ROOT, "%02X", h[i]));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private static String issuedTo(SslCertificate c) {
+        if (c == null) {
+            return "-";
+        }
+        SslCertificate.DName d = c.getIssuedTo();
+        return (d == null || d.getDName() == null) ? "-" : d.getDName();
+    }
+
+    /** ① 首次见到该主机的证书：亮指纹，让用户自己核对后决定 */
+    private void askTrustFirstTime(final String host, final String fp, SslError error,
+                                   final SslErrorHandler handler) {
+        if (isFinishing()) {
+            handler.cancel();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setCancelable(false)
+                .setTitle(R.string.ssl_first_title)
+                .setMessage(getString(R.string.ssl_first_msg, host, issuedTo(error.getCertificate()), fp))
+                .setPositiveButton(R.string.ssl_trust, (d, w) -> {
+                    Prefs.trustCert(this, host, fp);
+                    handler.proceed();
+                })
+                .setNegativeButton(R.string.ssl_cancel, (d, w) -> handler.cancel())
+                .setOnCancelListener(d -> handler.cancel())
+                .show();
+    }
+
+    /** ③ 指纹变了：这是最危险的一支 —— 默认取消，要**再点一次**才信任 */
+    private void askTrustChanged(final String host, final String fp, final String old,
+                                 final SslErrorHandler handler) {
+        if (isFinishing()) {
+            handler.cancel();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setCancelable(false)
+                .setTitle(R.string.ssl_changed_title)
+                .setMessage(getString(R.string.ssl_changed_msg, host, old, fp))
+                .setPositiveButton(R.string.ssl_changed_trust, (d, w) ->
+                        new AlertDialog.Builder(this)
+                                .setCancelable(false)
+                                .setTitle(R.string.ssl_changed_confirm_title)
+                                .setMessage(getString(R.string.ssl_changed_confirm_msg, host))
+                                .setPositiveButton(R.string.ssl_changed_confirm_yes, (d2, w2) -> {
+                                    Prefs.trustCert(this, host, fp);
+                                    handler.proceed();
+                                })
+                                .setNegativeButton(R.string.ssl_cancel, (d2, w2) -> handler.cancel())
+                                .setOnCancelListener(d2 -> handler.cancel())
+                                .show())
+                .setNegativeButton(R.string.ssl_cancel, (d, w) -> handler.cancel())
+                .setOnCancelListener(d -> handler.cancel())
+                .show();
+    }
+
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
     /** 有地址就加载；否则引导去设置页 */
     private void startIfConfigured() {
-        SharedPreferences sp = getSharedPreferences("dsh", MODE_PRIVATE);
-        String url = sp.getString("url", "").trim();
+        String url = Prefs.url(this);
         if (url.isEmpty()) {
             startActivity(new Intent(this, SettingsActivity.class));
             return;
         }
-        bar.setVisibility(View.VISIBLE);
-        web.loadUrl(url);
+        loadUrlWithPolicy(url);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        SharedPreferences sp = getSharedPreferences("dsh", MODE_PRIVATE);
-        String url = sp.getString("url", "").trim();
+        String url = Prefs.url(this);
         if (url.isEmpty()) {
             startActivity(new Intent(this, SettingsActivity.class));
         } else if (web.getUrl() == null) {
-            web.loadUrl(url);
+            loadUrlWithPolicy(url);
         }
     }
 

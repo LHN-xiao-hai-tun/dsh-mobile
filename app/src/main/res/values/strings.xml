@@ -82,4 +82,35 @@
     <string name="tpl_default_1">总结一下当前会话的要点</string>
     <string name="tpl_default_2">继续上次未完成的任务</string>
     <string name="tpl_default_3">把待办事项列成清单</string>
+
+    <!-- ═══ v1.3.0 · 连接前安全策略（MainActivity.loadUrlWithPolicy / NetPolicy） ═══ -->
+    <string name="sec_first_title">安全确认：明文连接</string>
+    <string name="sec_first_msg">"即将以【明文 HTTP】连接：\n%1$s\n\n主机：%2$s\n\n同一网络下的其他人可以窃听你与 DSH 之间的内容。\n这是局域网自建的常见用法，但请确认：\n  • 这是你自己的地址\n  • 这个网络是你信任的（不要用公共 WiFi）\n\n更稳妥：改用 HTTPS，或用 Tailscale / ZeroTier / WireGuard 组网。"</string>
+    <string name="sec_continue">我确认它是内网地址，继续</string>
+    <string name="sec_public_title">⚠️ 已拦截：公网地址 + 明文 HTTP</string>
+    <string name="sec_public_msg">"⚠️ 这不是内网地址，且用的是明文 HTTP：\n%1$s\n\n主机：%2$s\n\n公网明文意味着沿途任何人都可能读取或篡改流量，风险远高于局域网。\n强烈建议：\n  • 改用 https://\n  • 或先用 Tailscale / ZeroTier / WireGuard 组网，再连内网地址\n\n只有在你明确知道后果时才继续。"</string>
+    <string name="sec_public_continue">我知道风险，仍然继续</string>
+
+    <!-- ═══ v1.3.0 · 证书校验 TOFU（MainActivity.onReceivedSslError） ═══ -->
+    <string name="ssl_first_title">首次连接：确认服务器证书</string>
+    <string name="ssl_first_msg">"「%1$s」使用了系统不信任的证书（自签证书就是这种）。\n\n颁发给：%2$s\nSHA-256 指纹：\n%3$s\n\n请与你在服务端看到的指纹逐位核对：\n  • 一致 → 点「信任并继续」，之后不再询问\n  • 不一致 / 看不懂 → 点「取消」\n\n⚠️ 不要在公共 WiFi 下盲目信任。"</string>
+    <string name="ssl_trust">信任并继续</string>
+    <string name="ssl_cancel">取消</string>
+    <string name="ssl_changed_title">⚠️ 证书已变更</string>
+    <string name="ssl_changed_msg">"「%1$s」的证书指纹与上次记录的不一致。\n\n上次：\n%2$s\n\n这次：\n%3$s\n\n可能是服务端换了证书（正常），**也可能是中间人攻击**。\n如果你并没有主动更换过证书 —— 请立即取消，并检查网络。"</string>
+    <string name="ssl_changed_trust">仍然信任新证书</string>
+    <string name="ssl_changed_confirm_title">再次确认</string>
+    <string name="ssl_changed_confirm_msg">"确定要用新证书替换「%1$s」已记录的指纹吗？\n\n替换后不会再对这次变更发出警告。"</string>
+    <string name="ssl_changed_confirm_yes">确认替换</string>
+    <string name="ssl_unknown_cert">无法读取服务器证书，已中止连接（安全起见不放行）</string>
+
+    <!-- ═══ v1.3.0 · 设置页的「安全」小节 ═══ -->
+    <string name="settings_sec_title">安全</string>
+    <string name="settings_cert_label">已信任的证书（首次连接时由你确认）</string>
+    <string name="settings_cert_none">（暂无 —— 只在连接自签证书的服务时才会记录）</string>
+    <string name="settings_cert_clear">重置安全确认（证书信任 + 明文提示）</string>
+    <string name="settings_cert_cleared">已重置；下次连接会重新确认</string>
+    <string name="settings_cert_forget">清除这条信任</string>
+    <string name="settings_cert_forget_msg">"清除「%1$s」已记录的证书指纹？\n\n下次连接它会重新走一次「首次信任」确认。"</string>
+    <string name="settings_crypto_note">服务器地址、最近连接、快捷指令模板已在本机加密保存（AES-256-GCM，密钥存放在系统 Keystore）。</string>
 </resources>

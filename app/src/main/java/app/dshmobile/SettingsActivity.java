@@ -121,6 +121,72 @@ public class SettingsActivity extends Activity {
         });
         root.addView(clear);
 
+        // ---- v1.3.0 · 安全小节：本机加密说明 + 已信任证书（可逐条清除 / 一键重置） ----
+        TextView secTitle = new TextView(this);
+        secTitle.setText(R.string.settings_sec_title);
+        secTitle.setTextSize(18);
+        LinearLayout.LayoutParams stlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        stlp.topMargin = (int) (28 * d);
+        secTitle.setLayoutParams(stlp);
+        root.addView(secTitle);
+
+        TextView crypto = new TextView(this);
+        crypto.setTextSize(13);
+        crypto.setAlpha(0.75f);
+        crypto.setPadding(0, (int) (8 * d), 0, (int) (8 * d));
+        crypto.setText(R.string.settings_crypto_note);
+        root.addView(crypto);
+
+        TextView certLabel = new TextView(this);
+        certLabel.setTextSize(13);
+        certLabel.setAlpha(0.6f);
+        certLabel.setPadding(0, (int) (6 * d), 0, (int) (4 * d));
+        certLabel.setText(R.string.settings_cert_label);
+        root.addView(certLabel);
+
+        java.util.Map<String, String> certs = Prefs.trustedCerts(this);
+        if (certs.isEmpty()) {
+            TextView none = new TextView(this);
+            none.setTextSize(13);
+            none.setAlpha(0.6f);
+            none.setText(R.string.settings_cert_none);
+            root.addView(none);
+        } else {
+            for (final java.util.Map.Entry<String, String> en : certs.entrySet()) {
+                TextView row = new TextView(this);
+                row.setText(en.getKey() + "\n" + en.getValue());
+                row.setTextSize(12);
+                row.setTypeface(Typeface.MONOSPACE);
+                row.setPadding((int) (8 * d), (int) (8 * d), (int) (8 * d), (int) (8 * d));
+                row.setOnClickListener(v -> new AlertDialog.Builder(this)
+                        .setTitle(en.getKey())
+                        .setMessage(getString(R.string.settings_cert_forget_msg, en.getKey()))
+                        .setPositiveButton(R.string.settings_cert_forget, (dd, w) -> {
+                            Prefs.forgetCert(this, en.getKey());
+                            recreate();
+                        })
+                        .setNegativeButton(R.string.qc_cancel, null)
+                        .show());
+                root.addView(row);
+            }
+        }
+
+        Button reset = new Button(this);
+        reset.setText(R.string.settings_cert_clear);
+        reset.setAllCaps(false);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = (int) (8 * d);
+        reset.setLayoutParams(rlp);
+        reset.setOnClickListener(v -> {
+            Prefs.clearAllCerts(this);
+            Prefs.clearAcked(this);
+            Toast.makeText(this, R.string.settings_cert_cleared, Toast.LENGTH_SHORT).show();
+            recreate();
+        });
+        root.addView(reset);
+
         // 「关于」入口：版本 / 许可 / 致谢 / 检查更新
         Button about = new Button(this);
         about.setText(R.string.about_heading);

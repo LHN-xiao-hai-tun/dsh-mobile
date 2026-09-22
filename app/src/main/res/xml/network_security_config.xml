@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DSH Mobile · 网络安全配置（v1.3.0 起生效）
+
+  ⚠️ 为什么明文是「放行」的：
+     本 App 的主用途就是访问局域网里的 DSH —— `dsh-pocket` 的入口默认是
+     `http://<电脑IP>:3081`。全局禁明文等于把这个 App 打残，所以 base-config 放行明文。
+
+  ⚠️ 为什么「只允许私有网段明文」不写在这里：
+     Android 的 <domain> **只接受域名**，既不接受 IP 也不支持 CIDR。
+     写成 <domain>192.168.0.0</domain> 是**无效的**（会被当成一个叫 "192.168.0.0" 的域名，
+     永远匹配不上）。所以「按地址判断放行」只能在代码层做 —— 见 NetPolicy.java。
+     本文件只负责两件事：① 全局是否允许明文 ② 信任哪些 CA。
+
+  ⚠️ trust-anchors 只列 system：**不接受用户手动安装的 CA**。
+     这能挡住"装个根证书就能 MITM 你的 https"这类攻击；
+     需要自签证书的场景由 App 内的 TOFU（首次信任 + 指纹核对）兜底，见 MainActivity。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
