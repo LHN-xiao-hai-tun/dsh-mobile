@@ -42,6 +42,18 @@ android {
             }
         }
     }
+
+    // ── 可复现构建 ────────────────────────────────────────────────
+    // AGP 默认会往 APK 的「签名块」里再塞一个 SDK 依赖信息块（id 0x504b4453），
+    // 内容是 Tink HybridEncrypt(Deflate(依赖清单))：**每次构建都用新的临时密钥**，
+    // 密文天然随机 ⇒ 同一份源码两次构建体积一模一样、SHA-256 却必然不同，
+    // 「下载后用哈希核对是不是作者发的那一份」这个能力就废了。
+    // 关掉它之后 APK 内不再有任何随构建变化的字节（实测连续两次构建哈希一致）。
+    // ⚠️ AAB 保持开启：AAB 由 Play 重签、不面向用户做哈希核验，依赖元数据留着无害。
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = true
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
