@@ -4,14 +4,18 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.Uri;
 import android.net.http.SslCertificate;
 import android.net.http.SslError;
 import android.os.Bundle;
+import android.provider.Settings;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -32,6 +36,7 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -49,6 +54,8 @@ import java.util.Map;
  * 首次启动会引导填写地址；之后可点浮动齿轮按钮（可拖动）随时切换。
  */
 public class MainActivity extends Activity {
+
+    private static final String TAG = "DSHMobile";
 
     /** 浮动按钮边长 / 间距 / 吸附边缘留白（dp） */
     private static final int FAB_SIZE_DP = 44;
@@ -90,7 +97,29 @@ public class MainActivity extends Activity {
         touchSlop = ViewConfiguration.get(this).getScaledTouchSlop();
 
         root = new FrameLayout(this);
-        web = new WebView(this);
+
+        // ---------- v1.3.5 · 缺 WebView 守卫 ----------
+        // ⚠️ 真跑实测（AOSP android-26 模拟器）：设备上没有可用的 WebView 提供者时，
+        //    `new WebView(this)` 会**直接抛**，栈是
+        //      AndroidRuntimeException → WebViewFactory$MissingWebViewPackageException
+        //      at WebView.setOverScrollMode ← View.<init> ← AbsoluteLayout.<init> ← WebView.<init>
+        //    异常从 Activity 构造期冒到框架 ⇒ 用户只看到一个系统框「DSH Mobile 已停止」。
+        //    真机一般自带 WebView，但精简 ROM / 定制设备确实可能没有。
+        //    这里**先探一次、再构造**，并把构造本身也包起来 —— 探针与真因万一不一致时还有第二道。
+        if (!webViewUsable()) {
+            Log.w(TAG, "未发现可用的 WebView 提供者，改显示提示页（不崩溃）");
+            showMissingWebViewPage(dp);
+            return;                 // web 保持 null：下面所有 WebView 相关路径都做了 null 守卫
+        }
+        try {
+            web = new WebView(this);
+        } catch (Throwable t) {
+            Log.e(TAG, "构造 WebView 失败，改显示提示页（不崩溃）：" + t);
+            web = null;
+            showMissingWebViewPage(dp);
+            return;
+        }
+
         bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(100);
 
@@ -676,6 +705,7 @@ public class MainActivity extends Activity {
     }
 
     private void reallyLoad(String url) {
+        if (web == null) return;     // v1.3.5：缺 WebView 的设备上停在提示页，无 WebView 可加载
         lastRequestedUrl = url;      // v1.3.1：记下"已下发"，供 onResume 判断地址是否被改过
         if (bar != null) bar.setVisibility(View.VISIBLE);
         web.loadUrl(url);
@@ -771,6 +801,166 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    // ---------- v1.3.5 · 缺 WebView：探针 + 友好提示页 ----------
+
+    /**
+     * 这台设备**有没有**可用的 WebView 提供者？—— 探针，**不构造 WebView**。
+     *
+     * 用 API 26+ 的静态方法 {@link WebView#getCurrentWebViewPackage()}：没有装、或装了却没被
+     * 注册为提供者时返回 `null`。整个过程包在 try 里 —— 拿不准时**宁可当作没有**（走提示页，
+     * 好过崩给用户看）。真正的兜底是构造处那个 try/catch。
+     */
+    private static boolean webViewUsable() {
+        try {
+            return WebView.getCurrentWebViewPackage() != null;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * 「本机缺少可用的 WebView」提示页 —— **代替崩溃**。
+     *
+     * 只用框架自带控件（`ScrollView` / `LinearLayout` / `TextView` / `GradientDrawable`），
+     * **不碰任何 WebView 相关 API** —— 否则在这一页上又崩一次，等于白做。
+     */
+    private void showMissingWebViewPage(float dp) {
+        ScrollView sc = new ScrollView(this);
+        sc.setFillViewport(true);
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (24 * dp);
+        box.setPadding(pad, pad, pad, pad);
+
+        TextView title = new TextView(this);
+        title.setText(R.string.webview_missing_title);
+        title.setTextSize(20);
+        title.setTextColor(getColor(R.color.notice_title));
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.bottomMargin = (int) (12 * dp);
+        box.addView(title, tlp);
+
+        box.addView(noticeText(getString(R.string.webview_missing_msg), dp, 0));
+
+        TextView howto = noticeText(getString(R.string.webview_missing_howto), dp, (int) (16 * dp));
+        box.addView(howto);
+
+        // 「去安装 / 启用 WebView」——朴素的自绘按钮（与浮层按钮同一路子，不依赖主题的按钮样式）
+        TextView btn = new TextView(this);
+        btn.setText(R.string.webview_missing_btn);
+        btn.setTextSize(15);
+        btn.setTextColor(getColor(R.color.notice_btn_text));
+        btn.setGravity(Gravity.CENTER);
+        int bpv = (int) (12 * dp);
+        btn.setPadding(bpv, bpv, bpv, bpv);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(getColor(R.color.notice_btn_bg));
+        bg.setCornerRadius(10 * dp);
+        btn.setBackground(bg);
+        btn.setClickable(true);
+        btn.setOnClickListener(v -> openWebViewProviderPage());
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = (int) (24 * dp);
+        box.addView(btn, blp);
+
+        TextView foot = noticeText(getString(R.string.webview_missing_footnote), dp, (int) (16 * dp));
+        foot.setTextSize(12);
+        foot.setTextColor(getColor(R.color.notice_dim));
+        box.addView(foot);
+
+        sc.addView(box, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        root.addView(sc, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+    }
+
+    /** 提示页里的正文段落（统一字号 / 颜色 / 行距） */
+    private TextView noticeText(String s, float dp, int topMargin) {
+        TextView t = new TextView(this);
+        t.setText(s);
+        t.setTextSize(14);
+        t.setTextColor(getColor(R.color.notice_body));
+        t.setLineSpacing(4 * dp, 1f);
+        if (topMargin > 0) {
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.topMargin = topMargin;
+            t.setLayoutParams(lp);
+        }
+        return t;
+    }
+
+    /**
+     * 「去安装 / 启用 WebView」——按「最可能是哪种情况」逐级降级：
+     *
+     * ① **装了却不能用**（被停用 / 未注册为提供者）—— 真跑实测里 AOSP 镜像就是这一类。
+     *    直接进系统「应用详情」页：那个入口由系统设置提供，**任何 Android 设备上都存在**，
+     *    用户能在那儿「启用」它。
+     *    ⚠️ 一开始我这里是直接丢给浏览器的，实测踩到坑：AOSP 镜像里 `https://play.google.com/…`
+     *    会解析到 `org.chromium.webview_shell`，而**它自己也要 WebView** ⇒ 它崩了、被强杀，
+     *    用户看到的是「点一下 App 消失、蹦出另一个崩溃的 App」。所以稳妥的入口要排在前面。
+     * ② 没装 → 应用商店；③ 再退到浏览器；④ 三条都不通 → **明说**（而不是什么都不发生）。
+     */
+    private void openWebViewProviderPage() {
+        String installed = installedWebViewPackage();
+        if (installed != null) {
+            try {
+                Intent d = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", installed, null));
+                d.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(d);
+                return;
+            } catch (Exception ignored) {
+                // 极少数设备没有设置页 → 继续往下走
+            }
+        }
+        final String pkg = "com.google.android.webview";
+        String[] urls = {
+                "market://details?id=" + pkg,
+                "https://play.google.com/store/apps/details?id=" + pkg,
+        };
+        for (String u : urls) {
+            try {
+                Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return;
+            } catch (Exception ignored) {
+                // 没装商店 / 没浏览器 → 换下一条
+            }
+        }
+        toast(getString(R.string.webview_missing_no_store));
+    }
+
+    /**
+     * 这台设备上**装了**哪个 WebView 提供者？—— 只看「包在不在」，**不看「能不能用」**。
+     *
+     * 能走到提示页就说明"不能用"（`webViewUsable()` 已经答过了），这里只为决定**去处**：
+     * 装了 ⇒ 进应用详情页让用户启用；没装 ⇒ 去商店装一个。
+     */
+    private String installedWebViewPackage() {
+        String[] candidates = {
+                "com.google.android.webview",   // 官方「Android System WebView」
+                "com.android.webview",          // AOSP / 部分定制 ROM
+                "com.android.chrome",           // Chrome 也能当 WebView 提供者
+        };
+        PackageManager pm = getPackageManager();
+        for (String c : candidates) {
+            try {
+                pm.getPackageInfo(c, 0);
+                return c;
+            } catch (Exception ignored) {
+                // 没装这个 → 试下一个
+            }
+        }
+        return null;
+    }
+
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
@@ -794,6 +984,8 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // v1.3.5：缺 WebView 的设备停在提示页 —— 没有 WebView 可加载，也不该去开设置页
+        if (web == null) return;
         String url = Prefs.url(this);
         if (url.isEmpty()) {
             // ⚠️ 刻意**不**在这里再开设置页。
@@ -818,7 +1010,7 @@ public class MainActivity extends Activity {
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
-            if (web.canGoBack()) {
+            if (web != null && web.canGoBack()) {   // v1.3.5：缺 WebView 时 web 为 null
                 web.goBack();
                 return true;
             }

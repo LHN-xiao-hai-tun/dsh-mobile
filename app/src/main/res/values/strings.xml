@@ -121,4 +121,15 @@
     <string name="settings_log_note">日志只在本机生成，App 不会自动上传。导出前自动脱敏：地址里的 token / PIN、以及快捷指令内容都不会写进去。点一下会打开系统「保存到…」，存到「下载」后即可自行分享。</string>
     <string name="settings_log_fail">生成日志失败</string>
     <string name="settings_log_saved">已保存（已脱敏）</string>
+
+    <!-- ═══ v1.3.5 · 缺 WebView 友好提示页（MainActivity） ═══
+         背景：设备上没有可用的 WebView 提供者时，构造 WebView 会抛异常
+         （实测 AOSP android-26 镜像 ⇒ 用户只看到系统框「已停止」）。
+         这一页代替崩溃，把原因和三条出路讲清楚。 -->
+    <string name="webview_missing_title">本机缺少可用的 WebView</string>
+    <string name="webview_missing_msg">"DSH Mobile 只是一个「外壳」：它自己不含浏览器内核，页面要靠系统提供的 WebView（「Android System WebView」或 Chrome）来渲染。\n\n这台设备上找不到可用的 WebView，所以现在没法显示你的 DSH 页面。"</string>
+    <string name="webview_missing_howto">"怎么解决：\n  ① 装上「Android System WebView」或「Chrome」，然后重开本 App；\n  ② 若它已经装了却不能使用，到系统「设置 → 应用」里找到它，点「启用」；\n  ③ 急着用的话，也可以先用手机 / 电脑上的浏览器访问你的 DSH 地址。"</string>
+    <string name="webview_missing_footnote">（少数精简 ROM 彻底移除了 WebView，这时只能走 ① 或 ③。）</string>
+    <string name="webview_missing_btn">去安装 / 启用 WebView</string>
+    <string name="webview_missing_no_store">这台设备上没有可用的应用商店或浏览器，请手动安装「Android System WebView」</string>
 </resources>

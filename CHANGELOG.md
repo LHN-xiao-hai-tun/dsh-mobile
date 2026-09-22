@@ -7,6 +7,57 @@
 
 ## [未发布]
 
+## [1.3.5] - 2026-09-23
+
+> 稳定性：在**没有可用 WebView** 的设备上，从「启动即崩」改为「给一张说得清的提示页」。
+
+### 修复
+
+- **设备上没有可用的 WebView 时，App 启动即崩** —— 用户只看到一个系统框「DSH Mobile 已停止」。
+  - **复现（真跑 · AOSP android-26 模拟器）**：`WebViewFactory$MissingWebViewPackageException:
+    Failed to load WebView provider: No WebView installed`；崩点在 `MainActivity.java:93`
+    （`new WebView(this)`），栈是 `View.<init> → WebView.setOverScrollMode → ensureProviderCreated`
+    —— 异常从 Activity 构造期冒到框架。
+  - **修法**：构造 WebView **之前**先用 `WebView.getCurrentWebViewPackage()`（API 26+ 的静态探针，
+    本身**不构造** WebView）判一次；不可用就渲染一张**提示页**并 `return`。
+    构造处再加一层 `try/catch (Throwable)` 兜底 —— 探针与真因万一不一致时同样落到提示页。
+    提示页只用框架自带控件，**不碰任何 WebView API**（否则在这一页上又崩一次，等于白做）。
+    另补 `null` 守卫：`onResume` / `onKeyDown` / `reallyLoad` 在 `web == null` 时不再解引用。
+  - **提示页**：标题 + 说明（本 App 只是外壳，页面要靠系统 WebView 渲染）+ 三条出路
+    + 「去安装 / 启用 WebView」按钮 + 脚注。
+  - **按钮的降级链**：① 若设备**装了** WebView 提供者（`com.google.android.webview` /
+    `com.android.webview` / `com.android.chrome`）→ 进系统「应用详情」页让用户启用；
+    ② 否则去应用商店；③ 再退到浏览器；④ 三条都不通 → **明说**，而不是什么都不发生。
+    > ⚠️ ① 这一条是实测逼出来的：原先直接丢给浏览器，结果 AOSP 镜像里 `https://play.google.com/…`
+    > 会解析到 `org.chromium.webview_shell`，**而它自己也要 WebView** ⇒ 它崩了、被强杀，
+    > 用户看到的是「点一下 App 消失、又蹦出一个崩溃的 App」。系统设置的应用详情页任何机型都有，稳妥得多。
+
+### 验证（真跑 · 2026-09-23）
+
+| 场景 | 设备 | 结果 |
+|---|---|---|
+| **修前复现** | AOSP android-26（`default` 镜像 · 无可用 WebView） | ❌ 启动即崩（栈见上） |
+| **修后** | 同上 | ✅ 提示页正常显示（5 个文本节点）· `Displayed +473ms` · 无 FATAL / ANR |
+| 是哪一道拦下的 | 同上 | ✅ 日志 `未发现可用的 WebView 提供者，改显示提示页` ⇒ 是**探针**拦的，不是靠 `try/catch` |
+| 按钮 | 同上 | ✅ 落到 `com.android.settings/.applications.InstalledAppDetails`（`package:com.android.webview`） |
+| 返回键 | 同上 | ✅ 单次出 toast「再按一次退出」· 连按两次退出到 Launcher |
+| 旋转横屏 | 同上 | ✅ 内容完整（标题 + 按钮都在）· 0 崩溃 |
+| **正常路径回归** | `google_apis` android-26（`com.android.chrome` 作 WebView 提供者） | ✅ **不弹提示页**（探针不误报）· 正常走到设置页 · 配好测试地址后 **WebView 真渲染**（页面独有标记命中）· 0 崩溃 |
+
+> ⚠️ **未验的两条分支**（如实记）：① 按钮降级链的第 ④ 步（toast「没有可用的应用商店或浏览器」）
+> 需要「无 WebView **且**无商店 **且**无浏览器」的设备，现有镜像走不到；
+> ② 构造处的 `try/catch` 兜底只在探针与真因不一致时才会触发，本轮没复现到该情形。
+
+### 变更
+
+- 版本号 `1.3.4` → `1.3.5`（`versionCode` 16 → 17）
+- `values/colors.xml` 新增 5 条颜色（提示页配色，沿用「颜色单一色源」口径）
+
+### 兼容
+
+- 存储格式、权限、签名**均未变** ⇒ **覆盖安装即可**，App 内地址与已信任证书都不丢
+- **有可用 WebView 的设备上行为完全不变** —— 探针只读一个静态属性，正常路径一行没动（已回归）
+
 ## [1.3.4] - 2026-09-23
 
 > 排障能力：**导出一份脱敏好的诊断日志**（默认不上传 · 导出前脱敏 · 零新权限）。

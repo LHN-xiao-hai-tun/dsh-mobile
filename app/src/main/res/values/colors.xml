@@ -3,4 +3,11 @@
     <!-- 单一色源：容器底色 = 图标底色 = 状态栏/导航栏底色 -->
     <color name="icon_bg">#0B1220</color>
     <color name="app_bg">#0B1220</color>
+
+    <!-- v1.3.5 · 缺 WebView 提示页（常暗配色，与 Theme.DSH 一致） -->
+    <color name="notice_title">#FFFFFFFF</color>
+    <color name="notice_body">#FFC9D4E4</color>
+    <color name="notice_dim">#FF8494A8</color>
+    <color name="notice_btn_bg">#FF2563EB</color>
+    <color name="notice_btn_text">#FFFFFFFF</color>
 </resources>
