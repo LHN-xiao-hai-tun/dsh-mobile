@@ -52,8 +52,8 @@ final class LogExporter {
      *        ⇒ 值里出现 `.`/`@` 就**不是密钥，不脱敏**。长度仍要求 ≥12（token 类）以进一步收窄。
      */
     private static final Pattern TOKENISH = Pattern.compile(
-            "((?:token|access_token|refresh_token|session|sid)=)([A-Za-z0-9_\\-+/=]{12,})"
-                    + "|((?:pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=)([A-Za-z0-9_\\-+/=]{2,})",
+            "((?:token|access_token|refresh_token|session|sid)=)([A-Za-z0-9_\\-+/=]{12,})(?![A-Za-z0-9_\\-+/=])(?![.@])"
+                    + "|((?:pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=)([A-Za-z0-9_\\-+/=]{2,})(?![A-Za-z0-9_\\-+/=])(?![.@])",
             Pattern.CASE_INSENSITIVE);
     /** 日志行里形如 `?token=xxx` 或 `#xxx` 的尾巴 */
     private static final Pattern URL_TAIL = Pattern.compile("([?&#])(token|pin)=([^&\\s\"'<>]{2,})");
@@ -66,12 +66,23 @@ final class LogExporter {
     /** 对**任意文本**做脱敏（地址 / PIN / token / 密钥类查询参数）。保留 IP 与端口。 */
     static String redact(String text) {
         if (text == null || text.isEmpty()) return text;
-        // 两个分支各自保留自己的"键="前缀
-        String out = TOKENISH.matcher(text).replaceAll(m -> {
+        // 🔴 这里**不能**写 `TOKENISH.matcher(text).replaceAll(m -> …)`（lambda 重载）——
+        //    那个重载是 **Java 9 / Android 14（API 34）** 才有的方法，而本 App 的 minSdk 是 **26**
+        //    ⇒ Android 8~13 上一点「导出日志」就 **NoSuchMethodError 崩掉**（本 App 没开脱糖）。
+        //    实测经过（2026-09-23）：v1.3.4/v1.3.5 两版带着它发出去了 —— 本地 `assembleRelease`
+        //    全程绿灯（lintVital 默认只拦 Fatal，而 NewApi 是 Error），直到 CI 的完整
+        //    `lintRelease` 才照出来；已在本机 Android 8 模拟器上复现崩溃。
+        //    ⇒ 改用 **Java 8 就有的** appendReplacement/appendTail 循环，输出与原先逐字节一致。
+        //    另：`app/build.gradle` 已把 NewApi 提为 fatal，同类问题以后**本地出包就会拦下**。
+        Matcher m = TOKENISH.matcher(text);
+        StringBuffer sb = new StringBuffer(text.length());
+        while (m.find()) {
             // group1/3 = "键="；group2/4 = 值。**只保留键，值整个丢掉**
             String key = m.group(1) != null ? m.group(1) : m.group(3);
-            return key + "<已脱敏>";
-        });
+            m.appendReplacement(sb, Matcher.quoteReplacement(key + "<已脱敏>"));
+        }
+        m.appendTail(sb);
+        String out = sb.toString();
         out = URL_TAIL.matcher(out).replaceAll("$1$2=<已脱敏>");
         return out;
     }

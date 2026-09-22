@@ -7,6 +7,88 @@
 
 ## [未发布]
 
+## [1.3.6] - 2026-09-23
+
+> 🔴 修复一个**已经发布出去两版**的崩溃：**Android 8~13 上点「导出日志」→ 选完保存位置 → App 直接崩**。
+> 顺带把「用了高于 minSdk 的 API」这类问题**在本地出包那一步**就拦住，并补上第一份单元测试。
+
+### 修复
+
+- **Android 8~13 上「导出日志」必崩**（v1.3.4 引入 · v1.3.5 继承）。
+  - **真机实测（Android 8.0 模拟器）栈**：
+    ```
+    FATAL EXCEPTION: main
+    java.lang.NoSuchMethodError: No virtual method replaceAll(Ljava/util/function/Function;)Ljava/lang/String;
+      in class Ljava/util/regex/Matcher;   (declaration ... appears in /system/framework/core-oj.jar)
+      at app.dshmobile.LogExporter.redact(LogExporter.java:70)
+      at app.dshmobile.LogExporter.build(LogExporter.java:123)
+      at app.dshmobile.LogExporter.writeTo(LogExporter.java:235)
+      at app.dshmobile.SettingsActivity.onActivityResult(SettingsActivity.java:37)
+    ```
+    现场还留下一个 **0 字节**的半成品文件（系统文件选择器已建好文件，写入时崩）。
+  - **根因**：脱敏用了 `Matcher.replaceAll(Function)`（**lambda 重载**）—— 那是 **Java 9 / Android 14
+    （API 34）** 才有的方法，而本 App `minSdk 26` 且**没开脱糖** ⇒ Android 8~13 上该方法根本不存在。
+  - **为什么一直没发现**：导出日志只在 **Android 16/17** 真机上验过；而本地 `assembleRelease` 里跑的
+    **`lintVital` 默认只拦 Fatal**，`NewApi` 是 **Error** 级 ⇒ 一路放行。
+    ⚠️ **CI 其实早就报着这一条**（`lintRelease` 失败），只是那一步没人看过。
+  - **修法**：改用 Java 8 就有的 `appendReplacement` / `appendTail` 循环，**输出与原先逐字节一致**。
+- **脱敏在「值里带点」时会脱掉半截**（同一片代码，顺带修）。
+  旧判据只看**值的开头**是不是字符集，于是 `secret=android.os.BinderProxy@41fc4a7` 会把开头的
+  `android` 当密钥脱掉、留下 `<已脱敏>.os.BinderProxy@…` —— 与既定口径「含 `.`/`@` 就不是密钥」不符
+  （只损可读性，不泄露）。判据补两个后视断言：**值必须是完整的字符集串**（后面既不接字符集字符，也不接 `.`/`@`）。
+- **公网 IPv6 被当成内网**（本轮新补的单测当场逮到）。
+  `isPrivateHost` 原是「不含点 ⇒ 单标签主机名 ⇒ 内网」，而 `2001:db8::1` 这类 v6 字面量**不含点**
+  ⇒ 落进那条规则 ⇒ **公网 v6 只给"内网，确认一次"**，而不是"公网，默认拦下"——**方向是放松了防护**。
+  现已把 IPv6 字面量单独判：只有环回 `::1` 与 ULA `fc00::/7` 算内网。
+
+### 新增（测试与闸门）
+
+- **单元测试源：0 → 21 个**（`app/src/test/java/app/dshmobile/`）
+  - `LogExporterRedactTest`（12）—— 把两次脱敏 bug 的**真实样本**固化成断言：真机
+    `token=android.os.BinderProxy@…` **不许误伤**、真密钥**必须整段丢掉**（不许把值留在结果里）、
+    IP/端口保留、`null`/空安全、**二次脱敏幂等**（`build()` 结尾会对整段日志再脱一次）。
+  - `NetPolicyTest`（9）—— 私有网段 CIDR 边界（10/8、**172.16/12 的两个外侧**、192.168/16、127/8、
+    169.254/16）、单标签主机名 / `.local`、IPv6 环回与 ULA、非法 IPv4。
+  - 只加 `testImplementation 'junit:junit:4.13.2'` —— **不进 APK**，不影响体积与「无第三方 SDK」口径。
+- **lint 闸门**：`app/build.gradle` 把 **`NewApi` 提为 fatal** ⇒ 以后「用了高于 minSdk 的 API」
+  **本地 `assembleRelease` 就会失败**，不再指望 CI 事后发现。
+  （用同一份坏代码实测过：加闸前 `assembleRelease` 放行、加闸后直接拦下并打印那条 NewApi。）
+
+> ⚠️ **本机跑单测要绕一下**：项目真身在 `D:\RJ\ai\造物工坊\dsh-app`（**路径含中文**），
+> Gradle 的 test worker 在该路径下会 `ClassNotFoundException`（类明明在 classpath 上）；
+> 同一份源码放到纯 ASCII 路径下 21 个测试全过 ⇒ 是**路径**问题。请走工作区的
+> `scripts\unit-test.ps1`（它建一个 ASCII junction 再跑，不复制、单一真源）。CI 路径是 ASCII，不受影响。
+
+### 验证（真跑 · 2026-09-23）
+
+| 场景 | 设备 / 环境 | 结果 |
+|---|---|---|
+| **修前复现** | Android 8.0（API 26）模拟器 · 装已发布的 v1.3.5 | ❌ 点「导出日志」→ 选位置 → FATAL（`NoSuchMethodError`）· 留下 **0 字节**文件 |
+| **修后** | 同上 · 装 v1.3.6 | ✅ 无崩溃 · 无 `NoSuchMethodError` · **真机产出 466 字节日志**（11 行 · `版本: 1.3.6 (18)` · 结构正确） |
+| 单元测试 | 本机（ASCII junction） | ✅ **21 tests / 0 failures** |
+| lintRelease | 本机 + CI | ✅ **0 error**（原 1 error `NewApi`）· 13 warning（不阻断，见 §已知 warning） |
+
+### 变更
+
+- 版本号 `1.3.5` → `1.3.6`（`versionCode` 17 → 18）
+- **CI 各 action 升到维护中的大版本**：`actions/checkout` v4→**v7** · `actions/setup-java` v4→**v6** ·
+  `actions/upload-artifact` v4→**v7** · `android-actions/setup-android` v3→**v4** ·
+  `gradle/actions/setup-gradle` v4→**v6**。
+  起因：runner 告警「Node.js 20 is deprecated … forced to run on Node.js 24」+
+  setup-java 明确提示「v4 is deprecated, migrate to @v5」。
+  **只改版本号，steps 结构与 inputs 一字未动**（该次提交 diff 共 22 行，全是版本串）。
+
+### 已知 warning（13 条 · 均为存量 · 不阻断）
+
+`DefaultLocale`×2（LanScan）· `UnusedResources`×2（`ic_dsh_logo` / `settings_scan_running`）·
+`VectorPath`×2（图标路径过长）· `InsecureBaseConfiguration`（明文策略 — **有意为之**，按地址的放行
+判断在 `NetPolicy`）· `WebViewClientOnReceivedSslError`（**有意为之**，TOFU 需在用户确认后 `proceed`）·
+`MonochromeLauncherIcon` · `ObsoleteSdkInt`（`mipmap-anydpi-v26`）· `SetTextI18n` · `ClickableViewAccessibility`。
+
+### 兼容
+
+- 存储格式、权限、签名**均未变** ⇒ **覆盖安装即可**，App 内地址与已信任证书都不丢。
+
 ## [1.3.5] - 2026-09-23
 
 > 稳定性：在**没有可用 WebView** 的设备上，从「启动即崩」改为「给一张说得清的提示页」。

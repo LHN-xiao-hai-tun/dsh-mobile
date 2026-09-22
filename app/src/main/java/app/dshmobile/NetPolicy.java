@@ -50,9 +50,14 @@ final class NetPolicy {
         if (h.equals("localhost") || h.equals("::1") || h.startsWith("[::1]")) {
             return true;
         }
-        // IPv6 唯一本地地址 fc00::/7（以 fc / fd 开头）
-        if (h.contains(":") && (h.startsWith("fc") || h.startsWith("fd"))) {
-            return true;
+        // 🔴 IPv6 字面量必须**单独判**（v1.3.6 修 · 由新补的单测逮到）：
+        //    到这儿已排除 ::1 ⇒ 只有 ULA `fc00::/7`（fc / fd 开头）算内网，其余 v6 一律按公网从严。
+        //    ⚠️ 原来没有这一支，于是 `2001:db8::1` 这类**不含点**的 v6 字面量会掉进下面那条
+        //    「不含点 ⇒ 单标签主机名 ⇒ 内网」的规则里 ⇒ **公网 v6 被当成内网** ——
+        //    方向和"防中间人"相反（本该拦下的公网明文只给了"内网，确认一次"）。
+        if (h.contains(":")) {
+            return h.startsWith("fc") || h.startsWith("fd")
+                    || h.startsWith("[fc") || h.startsWith("[fd");
         }
         // 单标签主机名 / .local / .lan / .home —— 公网 DNS 解析不出来的名字
         if (!h.contains(".") || h.endsWith(".local") || h.endsWith(".lan") || h.endsWith(".home")) {
