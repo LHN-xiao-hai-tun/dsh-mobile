@@ -39,9 +39,17 @@ final class LogExporter {
     /** 与 res/xml/file_paths.xml 里的 <cache-path name> 必须一致 */
     private static final String PROVIDER_PATH = "exports";
 
-    /** 预编译：只匹配"看起来像密钥"的长串，避免误伤普通路径 */
+    /**
+     * 匹配"看起来像密钥"的赋值。**分两档长度**，避免误伤：
+     *   · `token=` 这类在 logcat 里会**与 Android 内部字段撞名**
+     *     （实测 2026-09-23：`ActivityRecord{de34fd token=…}` 里的 token 是 Binder 内部句柄，
+     *      只有 6~8 位十六进制）⇒ 要求 **≥12 位**才算密钥（真实 DSH token 是 40+ 位）；
+     *   · `pin` / `pwd` / `password` / `secret` / `apikey` 才是真的可能很短（PIN 常 4~6 位）⇒ 保持 ≥2 位。
+     */
     private static final Pattern TOKENISH = Pattern.compile(
-            "(?i)(token|pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=([^&\\s\"'<>]{2,})");
+            "((?:token|access_token|refresh_token|session|sid)=)([^&\\s\"'<>]{12,})"
+                    + "|((?:pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=)([^&\\s\"'<>]{2,})",
+            Pattern.CASE_INSENSITIVE);
     /** 日志行里形如 `?token=xxx` 或 `#xxx` 的尾巴 */
     private static final Pattern URL_TAIL = Pattern.compile("([?&#])(token|pin)=([^&\\s\"'<>]{2,})");
 
@@ -53,7 +61,12 @@ final class LogExporter {
     /** 对**任意文本**做脱敏（地址 / PIN / token / 密钥类查询参数）。保留 IP 与端口。 */
     static String redact(String text) {
         if (text == null || text.isEmpty()) return text;
-        String out = TOKENISH.matcher(text).replaceAll("$1=<已脱敏>");
+        // 两个分支各自保留自己的"键="前缀
+        String out = TOKENISH.matcher(text).replaceAll(m -> {
+            // group1/3 = "键="；group2/4 = 值。**只保留键，值整个丢掉**
+            String key = m.group(1) != null ? m.group(1) : m.group(3);
+            return key + "<已脱敏>";
+        });
         out = URL_TAIL.matcher(out).replaceAll("$1$2=<已脱敏>");
         return out;
     }
