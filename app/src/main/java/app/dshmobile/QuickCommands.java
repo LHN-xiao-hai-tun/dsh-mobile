@@ -143,9 +143,15 @@ final class QuickCommands {
             return;
         }
         web.evaluateJavascript(buildJs(text), value -> {
-            boolean ok = value != null && value.contains("OK");
-            if (ok) {
+            // evaluateJavascript 回来的是 **JSON 字面量**（带引号），如 "OK" —— 先去引号再判
+            String r = value == null ? "" : value.replace("\"", "");
+            if (r.startsWith("OK")) {
                 Toast.makeText(a, R.string.qc_injected, Toast.LENGTH_SHORT).show();
+            } else if (r.startsWith("NOCHANGE")) {
+                // 找到了输入框、也写了，但**页面没接受**（编辑器把这处 DOM 改动丢了）
+                // —— 旧版这里会回落成"没找到输入框"，措辞不对，故单独一条文案
+                copy(a, text);
+                Toast.makeText(a, R.string.qc_swallowed, Toast.LENGTH_SHORT).show();
             } else {
                 copy(a, text);
                 Toast.makeText(a, R.string.qc_no_input, Toast.LENGTH_SHORT).show();
@@ -159,6 +165,17 @@ final class QuickCommands {
     /**
      * 注入脚本：找出最可能的输入框并把文本追加进去。
      * 只派发 input/change，**不派发任何按键或 submit** —— 不会误触发发送。
+     *
+     * ── v1.3.2 修的两个真问题（真机定位：JS 返回 OK，但输入框里看不到字）
+     *  ① **选错元素**：旧版 `c[c.length-1]` 取的是"最后一个可见候选"，
+     *     而 DSH 页面上 textarea / 各种 contenteditable 有好几个 —— 取最后一个基本是错的。
+     *     现在按「**面积越大 + 位置越靠屏幕下方**」打分，挑最像聊天输入框的那个。
+     *  ② **写了但被框架丢掉**：旧版直接 `el.value = ...` / `el.textContent = ...`。
+     *     React / Vue / ProseMirror 这类受控组件**不认**这种直接赋值（它们的值来自自己的状态）。
+     *     现在**先试 `document.execCommand('insertText')`** —— 编辑器认这条路，会走它自己的
+     *     beforeinput/input 流程；不行再回退到「**原型上的原生 setter** + input/change 事件」
+     *     （原生 setter 才绕得过 React 对 value 的拦截）。
+     *  ③ 最后**回读校验**：DOM 真的变了才返回 `OK`，否则返回 `NOCHANGE`（让调用方说人话）。
      */
     private static String buildJs(String text) {
         String lit = org.json.JSONObject.quote(text);
@@ -166,22 +183,39 @@ final class QuickCommands {
                 + "var t=" + lit + ";"
                 + "function vis(e){if(!e)return false;var r=e.getBoundingClientRect();"
                 + "if(r.width<=0||r.height<=0)return false;var s=getComputedStyle(e);"
-                + "return s.visibility!=='hidden'&&s.display!=='none';}"
-                + "var c=[];"
-                + "document.querySelectorAll('textarea').forEach(function(e){if(vis(e))c.push(e);});"
-                + "if(!c.length){document.querySelectorAll('[contenteditable=\"true\"]')"
-                + ".forEach(function(e){if(vis(e))c.push(e);});}"
-                + "if(!c.length){document.querySelectorAll('input[type=\"text\"],input:not([type])')"
-                + ".forEach(function(e){if(vis(e))c.push(e);});}"
+                + "if(s.visibility==='hidden'||s.display==='none')return false;return true;}"
+                + "function grab(sel){var o=[],ns=document.querySelectorAll(sel);"
+                + "for(var i=0;i<ns.length;i++){var e=ns[i];"
+                + "if(e.disabled||e.readOnly)continue;if(!vis(e))continue;o.push(e);}return o;}"
+                // contenteditable 用「存在即算」，别再写死 ="true" —— plaintext-only 会漏
+                + "var c=grab('textarea')"
+                + ".concat(grab('[contenteditable]'))"
+                + ".concat(grab('input[type=\"text\"],input:not([type])'));"
                 + "if(!c.length)return 'NO_INPUT';"
-                + "var el=c[c.length-1];"
+                + "var vh=window.innerHeight||document.documentElement.clientHeight||1;"
+                + "var best=null,bs=-1;"
+                + "for(var j=0;j<c.length;j++){var e2=c[j],r2=e2.getBoundingClientRect();"
+                + "var low=(r2.top+r2.height/2)/vh;"
+                + "if(low<0)low=0;if(low>1.2)low=1.2;"
+                + "var sc=Math.log(r2.width*r2.height+1)*(0.4+low);"
+                + "if(sc>bs){bs=sc;best=e2;}}"
+                + "var el=best;"
                 + "try{el.focus();}catch(e){}"
-                + "if(el.isContentEditable){"
-                + "el.textContent=(el.textContent&&el.textContent.trim())?el.textContent+'\\n'+t:t;}"
-                + "else{el.value=(el.value&&el.value.trim())?el.value+'\\n'+t:t;}"
+                + "function val(){return el.isContentEditable?(el.textContent||''):(el.value||'');}"
+                + "var before=val();"
+                + "var did=false;"
+                + "try{did=document.execCommand('insertText',false,t);}catch(e){did=false;}"
+                + "if(val()===before){"
+                + "var nv=(before&&before.trim())?before+'\\n'+t:t;"
+                + "if(el.isContentEditable){el.textContent=nv;}"
+                + "else{var pr=(el.tagName==='TEXTAREA')?window.HTMLTextAreaElement.prototype"
+                + ":window.HTMLInputElement.prototype;"
+                + "var d=Object.getOwnPropertyDescriptor(pr,'value');"
+                + "if(d&&d.set){d.set.call(el,nv);}else{el.value=nv;}}"
                 + "el.dispatchEvent(new Event('input',{bubbles:true}));"
-                + "el.dispatchEvent(new Event('change',{bubbles:true}));"
-                + "return 'OK';}catch(e){return 'ERR';}})()";
+                + "el.dispatchEvent(new Event('change',{bubbles:true}));}"
+                + "return (val()!==before)?'OK':'NOCHANGE';"
+                + "}catch(e){return 'ERR';}})()";
     }
 
     private static void copy(Activity a, String text) {

@@ -76,6 +76,8 @@
     <string name="qc_copied">已复制到剪贴板</string>
     <string name="qc_injected">已填入输入框（未发送）</string>
     <string name="qc_no_input">没找到输入框，已复制到剪贴板</string>
+    <!-- v1.3.2：找到了输入框、也写进去了，但页面（编辑器框架）不接受这处改动 —— 措辞与"没找到"区分开 -->
+    <string name="qc_swallowed">页面没接受填入，已复制到剪贴板</string>
     <string name="qc_clip_label">DSH 指令</string>
 
     <!-- ═══ 快捷指令默认模板（Prefs · 用户可编辑，仅存本机） ═══ -->

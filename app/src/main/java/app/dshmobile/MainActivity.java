@@ -432,12 +432,31 @@ public class MainActivity extends Activity {
         saveFabPosition();
     }
 
-    /** 位置以「可移动范围的比例」存储 → 旋转/换密度后仍合理 */
+    /**
+     * 位置以「可移动范围的比例」存储 → 旋转/换密度后仍合理。
+     *
+     * ⚠️ v1.3.2 加固：**布局没稳定就绝不写**。
+     * 之前只做「比例 = 位置 / 最大范围」，再把结果交给 `Prefs.setFab` ——
+     * 而它会把比例 **静默 clamp 成 [0,1]**。于是只要某一帧的 `rootHeight()/fabHeight()`
+     * 还是 0 或残留旧值，比例就会算成 >1、被 clamp 成 **1.0**，
+     * 下次启动就表现为「拖到中间，重启后**跳到最下面**」（真机排查时遇到过这一形态）。
+     * 现在：尺寸没测好、或比例不在 [0,1]，**这一帧就不记** —— 宁可不记，也不记一个错的。
+     */
     private void saveFabPosition() {
+        if (root == null || root.getWidth() <= 0 || root.getHeight() <= 0
+                || fabStack == null || fabStack.getWidth() <= 0 || fabStack.getHeight() <= 0) {
+            return;
+        }
         int maxL = maxFabLeft();
         int maxT = maxFabTop();
-        float fx = maxL <= 0 ? 1f : (float) fabLeft() / maxL;
-        float fy = maxT <= 0 ? 1f : (float) fabTop() / maxT;
+        if (maxL <= 0 || maxT <= 0) {
+            return;
+        }
+        float fx = (float) fabLeft() / maxL;
+        float fy = (float) fabTop() / maxT;
+        if (fx < 0f || fx > 1f || fy < 0f || fy > 1f) {
+            return;
+        }
         Prefs.setFab(this, fx, fy);
     }
 
@@ -447,6 +466,9 @@ public class MainActivity extends Activity {
      * 为什么不能用 root.post()：post 只保证「已 attach + 主线程空闲」，不保证已 measure/layout
      * —— 那时 root.getWidth() 与 fabStack.getWidth() 都是 0，比例相乘得 0，按钮被压到左上角。
      * 这里用 OnGlobalLayoutListener：尺寸仍为 0 就等下一轮回调，成功后立刻移除监听（防重复）。
+     *
+     * ⚠️ v1.3.2：判据补上 **高度**。原来只看宽度 —— 若高度那一帧还是 0，
+     * `maxFabTop()` 会退化成 0，还原出来的纵向位置就是错的（比例乘 0 = 贴顶）。
      */
     private void restoreFabWhenMeasured() {
         if (root == null || fabStack == null) return;
@@ -455,7 +477,8 @@ public class MainActivity extends Activity {
         holder[0] = new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override
             public void onGlobalLayout() {
-                if (root.getWidth() <= 0 || fabStack.getWidth() <= 0) {
+                if (root.getWidth() <= 0 || root.getHeight() <= 0
+                        || fabStack.getWidth() <= 0 || fabStack.getHeight() <= 0) {
                     return; // 还没测量好，等下一次布局回调
                 }
                 ViewTreeObserver vto = root.getViewTreeObserver();

@@ -19,8 +19,8 @@ android {
         applicationId "app.dshmobile"
         minSdk 26
         targetSdk 34
-        versionCode 13
-        versionName "1.3.1"
+        versionCode 14
+        versionName "1.3.2"
     }
 
     signingConfigs {
