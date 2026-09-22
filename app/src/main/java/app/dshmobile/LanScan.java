@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   ① **mDNS/NSD 快路径**——发现 `_dsh._tcp.` 服务（DSH 端广播，端口由 SRV 记录给出）。
  *      服务类型本身就是 DSH 自报 → 命中按**高置信（strong=true）**回调，
  *      且**命中后提前收摊子网扫描**（用户感知"秒出"）。
- *   ② **子网扫描兜底**——254 主机 × 2 端口，TCP 快筛 + HTTP 特征分级。
+ *   ② **子网扫描兜底**——254 主机 × 3 端口，TCP 快筛 + HTTP 特征分级。
  *      ⚠️ **必须保留**：mDNS 会被 AP 隔离 / 路由器 IGMP snooping 挡掉，不能变成单点。
  *
  * 隐私口径（与本 App 其它部分一致）：
@@ -47,8 +47,19 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 final class LanScan {
 
-    /** 候选端口：3081 = dsh-pocket 局域网（推荐）· 3080 = Web UI */
-    private static final int[] PORTS = {3081, 3080};
+    /**
+     * 候选端口（**2026-09-22 修：补 3082**）。
+     *
+     * 为什么必须补 3082 —— 实测证据链：
+     *   · 电脑侧 `dsh-pocket/settings.json` 的 `proxyPort` = **3082**（Pocket 的真实监听端口），
+     *     而 3081 上**没有任何服务在听**；
+     *   · 于是旧清单 `{3081, 3080}` 在真机上**必然扫不到**电脑：
+     *     `adb shell curl http://<电脑IP>:3082/` = 200，而 3081 = 连不上、3080 只绑 loopback（超时）；
+     *   · Pocket 首页标题是 `DSH Pocket · 正在进入` ⇒ 含 `dsh pocket`，
+     *     命中 `classify()` 的**强特征** ⇒ 加进清单后能判为**高置信**（不是"候选需确认"）。
+     * ⇒ 顺序把 3082 放最前（最常见命中先探，且 254×3 时早命中早收摊）。
+     */
+    private static final int[] PORTS = {3082, 3081, 3080};
     /** 分级结果（v1.2.6）：无 / 高置信 DSH / 仅泛词命中（候选） */
     private static final int TIER_NONE = 0;
     private static final int TIER_DSH = 1;
