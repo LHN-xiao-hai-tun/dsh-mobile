@@ -40,15 +40,20 @@ final class LogExporter {
     private static final String PROVIDER_PATH = "exports";
 
     /**
-     * 匹配"看起来像密钥"的赋值。**分两档长度**，避免误伤：
-     *   · `token=` 这类在 logcat 里会**与 Android 内部字段撞名**
-     *     （实测 2026-09-23：`ActivityRecord{de34fd token=…}` 里的 token 是 Binder 内部句柄，
-     *      只有 6~8 位十六进制）⇒ 要求 **≥12 位**才算密钥（真实 DSH token 是 40+ 位）；
-     *   · `pin` / `pwd` / `password` / `secret` / `apikey` 才是真的可能很短（PIN 常 4~6 位）⇒ 保持 ≥2 位。
+     * 匹配"看起来像密钥"的赋值。
+     *
+     * 🔴 两轮真机实测修正（2026-09-23，靠用户导出的真实日志发现）：
+     *   v1 版：`(key)=([^&\s"'<>]{2,})` —— 会把 logcat 里**与密钥无关**的 Android 内部字段一并打码。
+     *   v2 版（误判为"长度能区分"）：给 token 类加"≥12 位" —— **仍然误伤**，因为真实日志里
+     *        `ActivityRecord{de34fd token=android.os.BinderProxy@41fc4a7 {…}}`
+     *        的值是 **30 个字符**（Java 对象引用），长度根本区分不了。
+     *   ✅ v3（本版）：改用**字符集**判据 —— 真实密钥（DSH token 等）只由
+     *        `A-Za-z0-9 _ - + / =` 组成；而 Java 对象引用含 `.` 与 `@`
+     *        ⇒ 值里出现 `.`/`@` 就**不是密钥，不脱敏**。长度仍要求 ≥12（token 类）以进一步收窄。
      */
     private static final Pattern TOKENISH = Pattern.compile(
-            "((?:token|access_token|refresh_token|session|sid)=)([^&\\s\"'<>]{12,})"
-                    + "|((?:pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=)([^&\\s\"'<>]{2,})",
+            "((?:token|access_token|refresh_token|session|sid)=)([A-Za-z0-9_\\-+/=]{12,})"
+                    + "|((?:pin|pwd|password|passwd|secret|apikey|api_key|access_key|sessdata)=)([A-Za-z0-9_\\-+/=]{2,})",
             Pattern.CASE_INSENSITIVE);
     /** 日志行里形如 `?token=xxx` 或 `#xxx` 的尾巴 */
     private static final Pattern URL_TAIL = Pattern.compile("([?&#])(token|pin)=([^&\\s\"'<>]{2,})");
