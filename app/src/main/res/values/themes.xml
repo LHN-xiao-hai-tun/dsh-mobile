@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!--
       DSH Mobile 采用「常暗」配色（有意设计，不是遗漏）：
       本 App 是 WebView 容器，承载的是 DSH Web UI（深色为主），
@@ -17,8 +17,11 @@
         <!--
           关闭 Android 10+ 的「强制暗色」：WebView 里的页面自带主题，
           再被系统二次反转会出现色偏/图片发灰。API 29 以下自动忽略。
+          tools:targetApi="29" 是给 lint 看的 —— 本属性 API 29 才存在，
+          minSdk 26 的机器上它本来就会被系统忽略（行为不变），
+          不标的话 lint 会按 NewApi 报错、把 lintRelease / CI 卡住。
         -->
-        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:forceDarkAllowed" tools:targetApi="29">false</item>
     </style>
 
     <!--

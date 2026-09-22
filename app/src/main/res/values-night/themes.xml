@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!--
       夜间资源（values-night）：本 App 为「常暗」设计，此处的值与 values/themes.xml 一致。
       显式提供夜间版本有两个好处：
@@ -12,7 +12,9 @@
         <item name="android:navigationBarColor">@color/app_bg</item>
         <item name="android:windowBackground">@color/app_bg</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:forceDarkAllowed">false</item>
+        <!-- tools:targetApi="29"：本属性 API 29 才存在，minSdk 26 上由系统忽略（行为不变）；
+             不标 lint 会按 NewApi 报错（与 values/themes.xml 同步）。 -->
+        <item name="android:forceDarkAllowed" tools:targetApi="29">false</item>
     </style>
 
     <!-- 启动页（夜间资源，与 values/themes.xml 保持一致） -->
