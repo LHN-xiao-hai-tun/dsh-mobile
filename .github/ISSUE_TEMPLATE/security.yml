@@ -10,15 +10,15 @@ body:
 
         **不要在公开 Issue 中披露漏洞细节**（利用步骤、PoC、受影响地址……一律不要贴）。
 
-        本仓库的 GitHub **私密漏洞报告功能尚未开启**。请按
-        [`SECURITY.md`](https://github.com/LHN-xiao-hai-tun/dsh-mobile/blob/master/SECURITY.md) 的方式处理：
+        **首选走私密渠道** —— 本仓库已开启 Private vulnerability reporting，只有维护者可见：
 
-        1. 就用这个模板提交，**标题写清楚是申请渠道**；
-        2. **正文只说明「想报告一个安全问题」+ 大致影响类别**，不要写复现细节；
-        3. 维护者会在本 Issue 回复一个私下渠道，之后请在那里提供完整信息。
+        👉 <https://github.com/LHN-xiao-hai-tun/dsh-mobile/security/advisories/new>
 
-        > 如果你只是**不确定某个行为算不算**安全问题，也可以在这里**简要描述现象**
-        > —— 但依然**不要包含任何利用细节或真实凭据**。
+        本表单用于**另一种情况**：你**不确定**某个行为算不算安全问题，想先问一句。
+        那就用这个模板，**只描述现象**，**不要包含任何利用细节或真实凭据**。
+
+        详见
+        [`SECURITY.md`](https://github.com/LHN-xiao-hai-tun/dsh-mobile/blob/master/SECURITY.md)。
   - type: dropdown
     id: category
     attributes:

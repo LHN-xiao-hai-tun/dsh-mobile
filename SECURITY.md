@@ -25,16 +25,21 @@
 
 **请不要在公开 Issue 中披露漏洞细节。**
 
-> ⚠️ **现状（如实说明）**：本仓库的 GitHub **私密漏洞报告（Private vulnerability reporting）尚未开启**。
-> 在开启之前，请按下面的方式**先建立私下渠道**：
+### 首选：GitHub 私密漏洞报告 ✅
+
+本仓库**已开启** Private vulnerability reporting —— 从下面这个入口提交，**只有维护者可见**：
+
+> 🔒 <https://github.com/LHN-xiao-hai-tun/dsh-mobile/security/advisories/new>
+
+也可以从仓库页面进去：**Security → Advisories → Report a vulnerability**。
+
+### 兜底：用不了该入口时
+
+若你没有 GitHub 账号、或该入口打不开：
 
 1. 新建一个 Issue，标题写 `[安全] 申请私下报告渠道`；
 2. **正文不要写任何漏洞细节**，只说明「想报告一个安全问题」；
 3. 维护者会在该 Issue 里回复一个私下渠道，之后请在那里提供细节。
-
-> **维护者待办**：在仓库 **Settings → Code security → Private vulnerability reporting** 开启后，
-> 可直接通过 <https://github.com/LHN-xiao-hai-tun/dsh-mobile/security/advisories/new> 提交，
-> 届时本节会同步更新为「优先使用该入口」。
 
 报告中请尽量包含：
 
