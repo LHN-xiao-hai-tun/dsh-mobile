@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
 
@@ -10,6 +11,7 @@ permissions:
   contents: read
 
 jobs:
+  # ── ① 冒烟：debug 包能构建 ────────────────────────────────
   build:
     name: assembleDebug
     runs-on: ubuntu-latest
@@ -44,6 +46,136 @@ jobs:
         with:
           name: dsh-mobile-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # ── ② Lint（批 3-2 新增）──────────────────────────────────
+  lint:
+    name: lintRelease
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # lintVital（阻塞级）已随 assembleRelease 跑；这里跑完整 lintRelease。
+      # 报告 always 上传（失败也看得到）；**不因存量 warning 阻断**——先"看得见"再谈"过不去"。
+      - name: Run lint
+        run: gradle lintRelease --no-daemon --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.html
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ── ③ 单元测试（批 3-2 新增 · 当前尚无测试源）─────────────
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      # ⚠️ 仓库目前**没有 app/src/test**（0 个测试源）⇒ 这一步会以 NO-SOURCE 通过。
+      #    意义是「先把闸门装好」：一旦补上测试（批 3-4 测试矩阵），CI 不用改。
+      - name: Run unit tests
+        run: gradle testReleaseUnitTest --no-daemon --stacktrace
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/**
+          if-no-files-found: warn
+          retention-days: 14
+
+  # ── ④ 可复现闸 + 校验和（批 3-2 新增 · 把批 3-1 的成果交给 CI 把守）──────
+  #
+  # ⚠️ 签名口径（**必读：别把 CI 的哈希当发布哈希**）
+  #   CI 里没有 keystore（密钥不进仓库）⇒ 这里构建的是**未签名的 release APK**，
+  #   它的 SHA-256 与「本地签名后发布的那一份」**必然不同**。
+  #   所以本作业干两件事：① 当「构建可复现」的守门员（自己跟自己比）；
+  #   ② 产出未签名工件的校验和供下载核对。
+  #   正式发布的哈希仍由本地 `scripts\release.ps1` 计算并写进 Release Notes。
+  determinism:
+    name: 可复现闸（连续两次 clean 构建比哈希）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: 第 1 次 clean assembleRelease
+        run: gradle clean assembleRelease --no-daemon
+
+      - name: 记下第 1 次哈希
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          echo "本次产物: $APK"
+          cp "$APK" /tmp/build1.apk
+          sha256sum /tmp/build1.apk | tee /tmp/hash1.txt
+
+      - name: 第 2 次 clean assembleRelease
+        run: gradle clean assembleRelease --no-daemon
+
+      - name: 比对哈希（不一致即失败）
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          cp "$APK" /tmp/build2.apk
+          sha256sum /tmp/build2.apk | tee /tmp/hash2.txt
+          h1=$(cut -d' ' -f1 /tmp/hash1.txt)
+          h2=$(cut -d' ' -f1 /tmp/hash2.txt)
+          echo "构建1 = $h1"
+          echo "构建2 = $h2"
+          if [ "$h1" != "$h2" ]; then
+            echo "::error::构建不可复现！两次 clean 构建哈希不同 ⇒ 先查 app/build.gradle 的 dependenciesInfo.includeInApk 是否被打开"
+            exit 1
+          fi
+          echo "::notice::可复现闸通过：两次 clean 构建哈希一致（$h1）"
+
+      - name: 产出校验和
+        run: |
+          cd /tmp
+          sha256sum build2.apk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload 校验和 + 未签名 release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-unsigned-apk-sha256
+          path: |
+            /tmp/SHA256SUMS.txt
+            /tmp/build2.apk
           if-no-files-found: error
           retention-days: 14
 
