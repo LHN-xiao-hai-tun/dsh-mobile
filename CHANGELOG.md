@@ -28,6 +28,20 @@
   - ⚠️ **比对哈希的前提是同一个 commit**：APK 里的 `META-INF/version-control-info.textproto`
     会记下**构建时的 git revision**，所以不同 commit 构建出的包哈希必然不同（这是特性，便于溯源）。
     自检脚本见工作区 `scripts\repro-check.ps1`。
+- **CI 补 lint / 单元测试闸 / 可复现闸**（`.github/workflows/build.yml`）：
+  `lintRelease`（报告 always 上传）· `testReleaseUnitTest`（当前无测试源，NO-SOURCE 通过，先把闸门装好）·
+  **可复现闸**（连续两次 `clean assembleRelease` 比 SHA-256，不一致直接 fail）+ 产出 `SHA256SUMS.txt` 工件。
+  - ⚠️ **签名口径**：CI 无 keystore ⇒ 构建的是**未签名** release APK，其哈希与**发布件必然不同**；
+    正式发布的哈希仍由本地 `scripts\release.ps1` 计算并写进 Release Notes。CI 的闸只保证「自己跟自己可复现」。
+  - CI 上**镜像只在本地生效**（`settings.gradle` 按 `CI` 环境变量判断）：实测 runner 上阿里云镜像缺
+    `commons-io → commons-parent:58 → org.apache:apache:29` 父链 ⇒ `lintVitalAnalyzeRelease` 解析失败。
+
+### 修复
+
+- **lint 报 2 个 `NewApi` error**：`values/` 与 `values-night/` 的 `android:forceDarkAllowed` 需 API 29（minSdk 26）
+  → 标 `tools:targetApi="29"`。**行为不变**（API 29 以下系统本就忽略该属性）。
+  为什么以前没暴露：`assembleRelease` 里的 `lintVital` **只拦 Fatal**，而 `NewApi` 是 **Error** ——
+  是这次补的完整 `lintRelease` 才把它照出来。
 
 ## [1.3.2] - 2026-09-22
 
