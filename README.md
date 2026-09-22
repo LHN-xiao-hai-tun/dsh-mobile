@@ -4,6 +4,7 @@
 
 [![Build](https://github.com/LHN-xiao-hai-tun/dsh-mobile/actions/workflows/build.yml/badge.svg)](https://github.com/LHN-xiao-hai-tun/dsh-mobile/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Security Policy](https://img.shields.io/badge/security-policy-green.svg)](SECURITY.md)
 [![Release](https://img.shields.io/github/v/release/LHN-xiao-hai-tun/dsh-mobile?label=release)](../../releases)
 [![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-brightgreen.svg)](#安装)
 [![APK](https://img.shields.io/badge/APK-~3%20MB-orange.svg)](../../releases)
@@ -120,6 +121,28 @@ dsh web --port 3080 --no-open
 
 ---
 
+## 🔒 安全部署（**先读这段**）
+
+**本 App 只是一个客户端 —— 安全与否，主要取决于你如何暴露 DSH 服务。**
+
+最短清单（完整版见 [`docs/SECURITY_DEPLOY.md`](docs/SECURITY_DEPLOY.md)）：
+
+| 项 | 做法 |
+|---|---|
+| **暴露方式** | ⭐ 用 [Tailscale](https://tailscale.com/) / ZeroTier / WireGuard **组网**，**不要把 DSH 暴露公网** |
+| **DSH 密码** | 🔴 **必设强 PIN / 密码** —— 否则同一网络下的任何设备都能操作你的电脑 |
+| **传输** | 尽量启用 **HTTPS**；**不要在公共 WiFi 下明文连接** |
+| **别做的事** | 不要 `frp` 裸奔 · 不要把地址 / PIN 截图发公开渠道 · 不要关锁屏密码 |
+| **发现结果** | mDNS / 扫子网的结果**不代表可信** —— App **不会自动连接**，连之前请核对主机名 / IP |
+| **手机丢了** | 立刻改 DSH 的 PIN，或在路由器 / 组网层吊销该设备 |
+
+> ⚠️ 当前版本**允许**明文 HTTP（为了支持局域网 `http://<电脑IP>:3081`）、WebView **放行混合内容**、
+> 本机配置**未加密存储** —— 这三条都如实写在 [`SECURITY.md`](SECURITY.md) 第五节的「已知的设计取舍」里。
+>
+> 🔒 **报告漏洞请勿公开披露细节** —— 渠道见 [`SECURITY.md`](SECURITY.md)。
+
+---
+
 ## 自己构建
 
 ```bash
@@ -158,15 +181,21 @@ dsh web --port 3080 --no-open
 ## 隐私
 
 - **不采集、不上传任何数据**
-- 只在本机 `SharedPreferences` 保存：你填的服务器地址、最近 5 条连接历史、快捷指令模板
+- 只在本机 `SharedPreferences` 保存：你填的服务器地址、最近 5 条连接历史、快捷指令模板、浮动按钮位置
 - **App 自身唯一的网络行为**就是访问你填的那个地址；「检查更新」也只是交给系统浏览器打开 GitHub 页面
 - 无广告、无统计、无第三方 SDK
+- 只声明 **3 个权限**：`INTERNET` · `ACCESS_NETWORK_STATE` · `CHANGE_WIFI_MULTICAST_STATE`（mDNS 组播锁用）
+
+> 完整口径（含「本机数据未加密」这条**已知限制**）见 [**PRIVACY.md**](PRIVACY.md)。
 
 ---
 
 ## 贡献
 
 欢迎提 Issue / PR —— 动手前请先读 [CONTRIBUTING.md](CONTRIBUTING.md)，尤其是**隐私与体积红线**（不引第三方 SDK、不上报、不预置地址、保持 Java、注意体积）。
+
+- 参与本项目即视为同意 [行为准则（CODE_OF_CONDUCT.md）](CODE_OF_CONDUCT.md)
+- **安全问题不要开公开 Issue** —— 走 [SECURITY.md](SECURITY.md)
 
 ---
 

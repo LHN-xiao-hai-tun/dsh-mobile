@@ -87,3 +87,25 @@ gradle assembleDebug
 3. `./gradlew assembleRelease`
 4. 在 GitHub Releases 新建 tag（`vX.Y.Z`）并上传 APK
    —— **APK 不入库**（仓库根目录不放 APK，`.gitignore` 已忽略 `*.apk`）
+
+## 八、🔒 安全问题
+
+**不要通过 PR 或公开 Issue 披露未修复的漏洞。**
+
+请走 [`SECURITY.md`](SECURITY.md) —— 那里写了报告渠道、响应预期，以及
+**当前已知的设计取舍**（明文流量 / 混合内容 / 网页权限授予 / 本机数据未加密）。
+
+若你的改动**放宽**了任何安全相关设置（明文流量、混合内容、WebView 文件访问、
+网页权限授予……），请在 PR 描述里写清**威胁模型**与**替代方案** —— 否则不予合并。
+
+## 九、行为准则
+
+请保持友善、就事论事。参见 [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)。
+
+## 十、隐私提醒（也适用于贡献者）
+
+提交 Issue / PR 时**不要粘贴**：真实服务器地址、端口映射、PIN、token、带凭据的截图。
+
+- 需要地址时用 `192.168.x.x` 这类**占位**
+- 截图请先打码（本仓库已用 `.gitignore` 忽略 `screenshots/_*.png` 这类临时截图，
+  就是因为它可能含私人会话内容）

@@ -1,0 +1,85 @@
+name: 🔒 安全报告
+description: 请勿在此披露漏洞细节 —— 先申请私下渠道
+title: "[安全] "
+labels: [security]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ 请先读这段
+
+        **不要在公开 Issue 中披露漏洞细节**（利用步骤、PoC、受影响地址……一律不要贴）。
+
+        本仓库的 GitHub **私密漏洞报告功能尚未开启**。请按
+        [`SECURITY.md`](https://github.com/LHN-xiao-hai-tun/dsh-mobile/blob/master/SECURITY.md) 的方式处理：
+
+        1. 就用这个模板提交，**标题写清楚是申请渠道**；
+        2. **正文只说明「想报告一个安全问题」+ 大致影响类别**，不要写复现细节；
+        3. 维护者会在本 Issue 回复一个私下渠道，之后请在那里提供完整信息。
+
+        > 如果你只是**不确定某个行为算不算**安全问题，也可以在这里**简要描述现象**
+        > —— 但依然**不要包含任何利用细节或真实凭据**。
+  - type: dropdown
+    id: category
+    attributes:
+      label: 影响类别（大致即可）
+      options:
+        - 信息泄露（地址 / Cookie / 登录态等被他人获取）
+        - 未授权访问（他人可操作我的 DSH）
+        - 明文传输 / 证书校验相关
+        - 权限或数据存储相关
+        - WebView / 页面内容相关
+        - 其他 / 不确定
+    validations:
+      required: true
+  - type: input
+    id: app_version
+    attributes:
+      label: DSH Mobile 版本
+      description: 在「设置 → 关于 DSH Mobile」里可以看到
+      placeholder: 例如 1.2.7
+    validations:
+      required: true
+  - type: input
+    id: dsh_version
+    attributes:
+      label: DSH（DeepSeek Harness）版本
+      placeholder: 例如 0.1.5
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: 连接方式
+      options:
+        - 局域网（dsh-pocket，3081）
+        - 电脑本机端口（3080）
+        - 手机 / 平板本机 proot 容器（127.0.0.1:3080）
+        - 组网（Tailscale / ZeroTier / WireGuard）
+        - 公网（frp / 端口转发 / 反向代理）
+        - 其他 / 不确定
+    validations:
+      required: true
+  - type: checkboxes
+    id: flags
+    attributes:
+      label: 环境情况
+      options:
+        - label: 启用了 HTTPS
+        - label: DSH 设置了 PIN / 密码
+        - label: 设备已 root
+  - type: textarea
+    id: summary
+    attributes:
+      label: 一句话说明（不含利用细节）
+      description: 例如「发现某情况下他人可读取我保存的服务器地址」
+      placeholder: 不要写复现步骤、不要贴真实地址或凭据
+    validations:
+      required: true
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: 确认
+      options:
+        - label: 我确认本 Issue **不含**任何漏洞细节、真实地址、PIN 或 token
+          required: true
