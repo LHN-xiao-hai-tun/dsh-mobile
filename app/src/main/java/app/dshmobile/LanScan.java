@@ -60,10 +60,14 @@ final class LanScan {
      * ⇒ 顺序把 3082 放最前（最常见命中先探，且 254×3 时早命中早收摊）。
      */
     private static final int[] PORTS = {3082, 3081, 3080};
-    /** 分级结果（v1.2.6）：无 / 高置信 DSH / 仅泛词命中（候选） */
-    private static final int TIER_NONE = 0;
-    private static final int TIER_DSH = 1;
-    private static final int TIER_MAYBE = 2;
+    /**
+     * 分级结果（v1.2.6）：无 / 高置信 DSH / 仅泛词命中（候选）。
+     * ⚠️ 包级可见（不是 private）**只为让单测能引用**（`LanScanClassifyTest`）；
+     *    本类本身就是包内私有类，因此这不会扩大任何对外 API。
+     */
+    static final int TIER_NONE = 0;
+    static final int TIER_DSH = 1;
+    static final int TIER_MAYBE = 2;
     private static final int CONNECT_TIMEOUT_MS = 350;
     private static final int THREADS = 48;
     private static final int TOTAL_WAIT_SECONDS = 30;
@@ -372,26 +376,47 @@ final class LanScan {
             String body = new String(buf, 0, Math.max(0, n), "UTF-8").toLowerCase();
             String title = titleOf(body);
 
-            // ── 级 A：强特征（DSH 专有短语 / 标题含 DSH）──
-            if (body.contains("dsh pocket")
-                    || body.contains("dsh web authentication")
-                    || body.contains("deepseek harness")
-                    || body.contains("dsh 本地构建")
-                    || title.contains("dsh")
-                    || title.contains("harness")) {
-                return TIER_DSH;
-            }
-            // ── 级 B：仅泛词 ──
-            if (body.contains("deepseek") || body.contains("harness") || body.contains("dsh")) {
-                return TIER_MAYBE;
-            }
-            return TIER_NONE;
+            // 判据抽成纯函数（v1.3.7）—— 这样「误报用例」能进单测（见 LanScanClassifyTest）
+            return classifyBody(body, title);
         } catch (Exception e) {
             return TIER_NONE;
         } finally {
             try { if (in != null) in.close(); } catch (Exception ignored) { }
             if (c != null) c.disconnect();
         }
+    }
+
+    /**
+     * **纯判据**：只看「已小写的正文」与「标题」→ 分级。无网络、无 Android 依赖 ⇒ 可单测。
+     *
+     * ⭐ v1.3.7 收紧（据总会话 2026-09-23 的误报实测复核，件：`转交_dsh-mobile_v1.2.7收紧A级harness标题判据`）：
+     *   `harness` 是 **CI / 测试领域的通用词** —— 实测合成页 `<title>Test Harness</title>`（Jenkins 一类）
+     *   会被判成 **A 级 = 直接列为 DSH**，属**真误报** 🔴。
+     *   ⇒ **A 级标题判据只留 `title.contains("dsh")`**，裸 `harness` 一律降到 B 级（候选，交人工确认）。
+     *   （正文里的 `deepseek harness` 仍算 A —— 那是短语级的强信号，不是单个通用词。）
+     *
+     * 分级：
+     *   TIER_DSH（A）—— 高置信，直接当 DSH；
+     *   TIER_MAYBE（B）—— 仅泛词命中，候选，展示时标「（需确认）」；
+     *   TIER_NONE（C）—— 无关。
+     */
+    static int classifyBody(String lowerBody, String title) {
+        if (lowerBody == null) lowerBody = "";
+        if (title == null) title = "";
+
+        // ── 级 A：强特征（DSH 专有短语 / 标题含 DSH）──
+        if (lowerBody.contains("dsh pocket")
+                || lowerBody.contains("dsh web authentication")
+                || lowerBody.contains("deepseek harness")
+                || lowerBody.contains("dsh 本地构建")
+                || title.contains("dsh")) {
+            return TIER_DSH;
+        }
+        // ── 级 B：仅泛词（单独出现的 deepseek / harness / dsh）──
+        if (lowerBody.contains("deepseek") || lowerBody.contains("harness") || lowerBody.contains("dsh")) {
+            return TIER_MAYBE;
+        }
+        return TIER_NONE;
     }
 
     /** 取 `<title>…</title>` 的内容（取不到返回空串）；用于强特征判定 */

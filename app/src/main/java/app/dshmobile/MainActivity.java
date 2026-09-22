@@ -295,10 +295,41 @@ public class MainActivity extends Activity {
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb,
                                              FileChooserParams params) {
-                toast("\u5f53\u524d\u7248\u672c\u4e0d\u652f\u6301\u7f51\u9875\u4e0a\u4f20\u6587\u4ef6");
-                return false;
+                // ---------- v1.3.7 · 支持网页上传文件 ----------
+                // ⚠️ 三件事必须做对，否则页面会**永久卡死**（表现为"点了没反应、再也不弹"）：
+                //   ① 每个 callback 恰好回调一次；
+                //   ② 上一次还没回应就又来一次 ⇒ 先把旧的以 null 结束掉；
+                //   ③ Activity 销毁时也要兜底结束，否则句柄悬空。
+                if (fileCallback != null) {
+                    fileCallback.onReceiveValue(null);
+                }
+                fileCallback = cb;
+                try {
+                    // 用官方 createIntent：页面声明的 accept / multiple 会被带上，过滤规则由页面决定
+                    Intent i = params.createIntent();
+                    i.addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(i, REQ_FILE_CHOOSER);
+                    return true;
+                } catch (Exception e) {
+                    // 没有可用的文件选择器（极精简 ROM）→ 干净地回 null，并说人话
+                    Log.w(TAG, "拉起文件选择器失败：" + e);
+                    fileCallback = null;
+                    cb.onReceiveValue(null);
+                    toast(getString(R.string.upload_no_picker));
+                    return false;
+                }
             }
         });
+
+        // ---------- v1.3.7 · 网页下载不再「点了没反应」 ----------
+        // ⚠️ 本版**只做"不再静默"**：弹一个选择（用浏览器打开 / 复制链接），
+        //    **不替用户取文件、不落盘**。理由是三条真问题（见 03_文档\设计_dsh-mobile_上传下载_2026-09-23.md §四）：
+        //     ① 下载链接可能要**会话 Cookie** → 交给浏览器可能 401；
+        //     ② 若是自签 https，App 自己发请求必须**只 pin 用户已确认过的指纹**（不能 trust-all）；
+        //     ③ DownloadManager 写公共目录在 API 26–28 要存储权限 → 会破「零运行时权限」口径。
+        //    ⇒ 应用内下载（B2）留到确有需求时再做。
+        web.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
+                askWhatToDoWithDownload(url));
 
         installReconnect();
         startIfConfigured();
@@ -961,6 +992,72 @@ public class MainActivity extends Activity {
         return null;
     }
 
+    // ---------- v1.3.7 · 网页上传（onShowFileChooser 的配对实现） ----------
+
+    /** 文件选择器的请求码 */
+    private static final int REQ_FILE_CHOOSER = 0x51;
+    /**
+     * 等待回应的文件选择回调。
+     * ⚠️ 每个 callback **必须恰好回调一次**（Android 的硬要求）—— 提前/重复/丢失都会让页面的
+     * 文件输入框永久卡住。所以：覆盖前先结束旧的、失败路径也回 null、onDestroy 再兜一次。
+     */
+    private ValueCallback<Uri[]> fileCallback;
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_FILE_CHOOSER) return;
+        ValueCallback<Uri[]> cb = fileCallback;
+        fileCallback = null;                       // 先清，保证"恰好一次"
+        if (cb == null) return;
+        // 用官方 parseResult：它负责把 resultCode / data 翻译成 Uri[]（取消时给 null）
+        cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+    }
+
+    /**
+     * 网页触发了下载 —— 问用户想怎么办。
+     *
+     * 本版只给两条**不碰安全模型**的路：用系统浏览器打开 / 复制链接。
+     * ⛔ 不在这里替用户发起网络请求：那要处理 Cookie 回放与自签证书信任（见设计文档 §4.3）。
+     */
+    private void askWhatToDoWithDownload(final String url) {
+        if (url == null || url.isEmpty()) return;
+        if (isFinishing()) return;
+        final String shown = url.length() > 120 ? url.substring(0, 120) + "…" : url;
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.dl_title)
+                .setMessage(getString(R.string.dl_msg_fmt, shown))
+                .setPositiveButton(R.string.dl_open_browser, (d, w) -> openInBrowser(url))
+                .setNeutralButton(R.string.dl_copy_link, (d, w) -> copyLink(url))
+                .setNegativeButton(R.string.qc_cancel, null)
+                .show();
+    }
+
+    /** 交给系统浏览器（⚠️ 浏览器里可能没有 DSH 的会话 Cookie ⇒ 可能 401，这是本版已知代价） */
+    private void openInBrowser(String url) {
+        try {
+            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(i);
+        } catch (Exception e) {
+            Log.w(TAG, "打开浏览器失败：" + e);
+            toast(getString(R.string.about_no_browser));
+        }
+    }
+
+    /** 复制链接（浏览器那条路不通时的兜底） */
+    private void copyLink(String url) {
+        try {
+            android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+            if (cm == null) { toast(getString(R.string.about_no_browser)); return; }
+            cm.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.dl_clip_label), url));
+            toast(getString(R.string.qc_copied));
+        } catch (Exception e) {
+            Log.w(TAG, "复制链接失败：" + e);
+        }
+    }
+
     private void toast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
@@ -1028,6 +1125,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        // 文件选择回调兜底结束（v1.3.7）—— 悬空会让页面的文件输入框永久卡住
+        if (fileCallback != null) {
+            fileCallback.onReceiveValue(null);
+            fileCallback = null;
+        }
         // 注销网络回调（v1.2.5）—— 不注销会随 Activity 泄漏
         if (netCallback != null) {
             try {

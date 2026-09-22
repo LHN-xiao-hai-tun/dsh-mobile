@@ -132,4 +132,14 @@
     <string name="webview_missing_footnote">（少数精简 ROM 彻底移除了 WebView，这时只能走 ① 或 ③。）</string>
     <string name="webview_missing_btn">去安装 / 启用 WebView</string>
     <string name="webview_missing_no_store">这台设备上没有可用的应用商店或浏览器，请手动安装「Android System WebView」</string>
+
+    <!-- ═══ v1.3.7 · 网页上传 / 下载（MainActivity） ═══ -->
+    <!-- 上传：走系统文件选择器（SAF，不需要任何权限） -->
+    <string name="upload_no_picker">这台设备上没有可用的文件选择器</string>
+    <!-- 下载：本版只做「不再点了没反应」，给两条不碰安全模型的路 -->
+    <string name="dl_title">网页要下载文件</string>
+    <string name="dl_msg_fmt">来源：\n%1$s\n\n本版本不会替你把文件下载到手机里（那需要处理登录凭据与自签证书，正在设计）。\n你可以用系统浏览器打开，或先复制链接。</string>
+    <string name="dl_open_browser">用浏览器打开</string>
+    <string name="dl_copy_link">复制链接</string>
+    <string name="dl_clip_label">下载链接</string>
 </resources>
