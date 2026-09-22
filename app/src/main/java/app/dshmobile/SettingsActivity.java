@@ -26,6 +26,20 @@ import java.util.List;
  */
 public class SettingsActivity extends Activity {
 
+    /** 导出日志：SAF 文件选择器的请求码（批 3-5） */
+    private static final int REQ_SAVE_LOG = 0x5A01;
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_SAVE_LOG && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+            String err = LogExporter.writeTo(this, data.getData());
+            String msg = (err == null) ? getString(R.string.settings_log_saved) : err;
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        }
+    }
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -205,9 +219,11 @@ public class SettingsActivity extends Activity {
         elp.topMargin = (int) (8 * d);
         exportLog.setLayoutParams(elp);
         exportLog.setOnClickListener(v -> {
-            String err = LogExporter.exportAndShare(this);
-            if (err != null) {
-                Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+            // 主路径：系统文件选择器 → 存成真实文件（用户可存到「下载」，之后随便传）
+            try {
+                startActivityForResult(LogExporter.saveIntent(LogExporter.suggestedName()), REQ_SAVE_LOG);
+            } catch (Exception e) {
+                Toast.makeText(this, R.string.settings_log_fail, Toast.LENGTH_LONG).show();
             }
         });
         root.addView(exportLog);

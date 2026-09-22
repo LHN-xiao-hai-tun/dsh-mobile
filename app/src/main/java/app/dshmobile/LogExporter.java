@@ -187,4 +187,38 @@ final class LogExporter {
             return "已生成到应用缓存，但无法拉起分享：" + redact(String.valueOf(e.getMessage()));
         }
     }
+
+    /**
+     * 用系统文件选择器**存成真实文件**（用户自己挑位置，通常存到「下载」）。
+     *
+     * ⚠️ 为什么不能只靠「分享」：实测（2026-09-23）在荣耀机型上，分享面板里选到
+     *    只吃文本的目标（备忘录 / 微信收藏）时，**附件不会被带走** —— 用户只收到那段说明文字，
+     *    拿不到日志文件本身。所以主路径改为 SAF（ACTION_CREATE_DOCUMENT）：
+     *    不依赖任何存储权限，落点由用户指定，文件是**真·文件**，之后想再分享/传电脑都行。
+     */
+    static Intent saveIntent(String fileName) {
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("text/plain");
+        i.putExtra(Intent.EXTRA_TITLE, fileName);
+        return i;
+    }
+
+    /** 建议的文件名（带时间戳） */
+    static String suggestedName() {
+        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new Date());
+        return "dsh-mobile-log-" + stamp + ".txt";
+    }
+
+    /** 把日志正文写进用户选定的 Uri；返回 null = 成功 */
+    static String writeTo(Context c, Uri target) {
+        try (java.io.OutputStream os = c.getContentResolver().openOutputStream(target)) {
+            if (os == null) return "无法写入所选位置";
+            os.write(build(c).getBytes(StandardCharsets.UTF_8));
+            os.flush();
+            return null;
+        } catch (Exception e) {
+            return "写入失败：" + redact(String.valueOf(e.getMessage()));
+        }
+    }
 }
