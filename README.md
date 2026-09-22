@@ -136,8 +136,12 @@ dsh web --port 3080 --no-open
 | **发现结果** | mDNS / 扫子网的结果**不代表可信** —— App **不会自动连接**，连之前请核对主机名 / IP |
 | **手机丢了** | 立刻改 DSH 的 PIN，或在路由器 / 组网层吊销该设备 |
 
-> ⚠️ 当前版本**允许**明文 HTTP（为了支持局域网 `http://<电脑IP>:3081`）、WebView **放行混合内容**、
-> 本机配置**未加密存储** —— 这三条都如实写在 [`SECURITY.md`](SECURITY.md) 第五节的「已知的设计取舍」里。
+> ⚠️ 当前版本**仍允许**明文 HTTP（这是局域网 `http://<电脑IP>:3081` 的前提），
+> 但已加**分级策略**：私有网段首次确认一次、**公网明文默认拦下**。
+>
+> **v1.3.0 起**：混合内容**不再放行**（`NEVER_ALLOW`）、本机敏感配置**已加密**
+> （AES-256-GCM + Keystore）、证书走 **TOFU 首次信任**。完整现状见
+> [`SECURITY.md`](SECURITY.md) 第五节的「连接安全机制与取舍」。
 >
 > 🔒 **报告漏洞请勿公开披露细节** —— 渠道见 [`SECURITY.md`](SECURITY.md)。
 
@@ -187,7 +191,7 @@ dsh web --port 3080 --no-open
 - 只声明 **3 个权限**：`INTERNET` · `ACCESS_NETWORK_STATE` · `CHANGE_WIFI_MULTICAST_STATE`（mDNS 组播锁用）
   （打包后清单里另有 1 条 androidx 自动生成的应用自有权限，不涉及用户数据 —— 见 [PRIVACY.md](PRIVACY.md)）
 
-> 完整口径（含「本机数据未加密」这条**已知限制**）见 [**PRIVACY.md**](PRIVACY.md)。
+> 完整口径（含**加密存放**与「仍然要注意的」那几条）见 [**PRIVACY.md**](PRIVACY.md)。
 
 ---
 
