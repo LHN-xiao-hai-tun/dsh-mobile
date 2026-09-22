@@ -653,6 +653,7 @@ public class MainActivity extends Activity {
     }
 
     private void reallyLoad(String url) {
+        lastRequestedUrl = url;      // v1.3.1：记下"已下发"，供 onResume 判断地址是否被改过
         if (bar != null) bar.setVisibility(View.VISIBLE);
         web.loadUrl(url);
     }
@@ -751,7 +752,13 @@ public class MainActivity extends Activity {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
-    /** 有地址就加载；否则引导去设置页 */
+    /**
+     * 上一次**已下发**给 WebView 的地址。
+     * v1.3.1：用来判断「你在设置页把地址改了」，从而决定要不要重载。
+     */
+    private String lastRequestedUrl = null;
+
+    /** 有地址就加载；没地址则在**启动时**引导一次去设置页 */
     private void startIfConfigured() {
         String url = Prefs.url(this);
         if (url.isEmpty()) {
@@ -766,8 +773,21 @@ public class MainActivity extends Activity {
         super.onResume();
         String url = Prefs.url(this);
         if (url.isEmpty()) {
-            startActivity(new Intent(this, SettingsActivity.class));
-        } else if (web.getUrl() == null) {
+            // ⚠️ 刻意**不**在这里再开设置页。
+            // 老代码是无条件 `startActivity(SettingsActivity)` —— 于是「清空地址 → 按返回键」
+            // 会被反复弹回设置页，用户被关在里面出不来（v1.3.0 真机复现：每次 onResume
+            // 的 topResumedActivity 都是 SettingsActivity）。
+            // 引导只放在**启动时**做一次（startIfConfigured）；之后想改地址点 ⚙ 即可。
+            return;
+        }
+
+        // v1.3.1：**地址被改过就必须重载**。
+        // 旧判据只有 `web.getUrl() == null` —— WebView 已经加载过页面时它永远不成立，
+        // 表现就是「在设置页改完地址毫无反应，要杀掉 App 重开才生效」。
+        //
+        // 这里比的是「你配置的地址」vs「上次下发过的地址」，**与 WebView 自己跳到哪儿无关**，
+        // 所以不会被 DSH 的登录跳转 / 补尾斜杠之类的情况误触发重载。
+        if (!url.equals(lastRequestedUrl) || web.getUrl() == null) {
             loadUrlWithPolicy(url);
         }
     }
