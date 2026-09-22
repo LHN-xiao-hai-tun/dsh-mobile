@@ -187,6 +187,31 @@ public class SettingsActivity extends Activity {
         });
         root.addView(reset);
 
+        // 导出诊断日志（批 3-5）：本机生成 + 脱敏 + 交给分享面板；App 从不自动上传
+        TextView logNote = new TextView(this);
+        logNote.setText(R.string.settings_log_note);
+        logNote.setTextSize(12f);
+        LinearLayout.LayoutParams lnlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lnlp.topMargin = (int) (14 * d);
+        logNote.setLayoutParams(lnlp);
+        root.addView(logNote);
+
+        Button exportLog = new Button(this);
+        exportLog.setText(R.string.settings_log_export);
+        exportLog.setAllCaps(false);
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        elp.topMargin = (int) (8 * d);
+        exportLog.setLayoutParams(elp);
+        exportLog.setOnClickListener(v -> {
+            String err = LogExporter.exportAndShare(this);
+            if (err != null) {
+                Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+            }
+        });
+        root.addView(exportLog);
+
         // 「关于」入口：版本 / 许可 / 致谢 / 检查更新
         Button about = new Button(this);
         about.setText(R.string.about_heading);

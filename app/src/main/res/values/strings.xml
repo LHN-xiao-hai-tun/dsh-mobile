@@ -115,4 +115,9 @@
     <string name="settings_cert_forget">清除这条信任</string>
     <string name="settings_cert_forget_msg">"清除「%1$s」已记录的证书指纹？\n\n下次连接它会重新走一次「首次信任」确认。"</string>
     <string name="settings_crypto_note">服务器地址、最近连接、快捷指令模板已在本机加密保存（AES-256-GCM，密钥存放在系统 Keystore）。</string>
+
+    <!-- ═══ 导出诊断日志（批 3-5 · LogExporter） ═══ -->
+    <string name="settings_log_export">导出日志（排障用）</string>
+    <string name="settings_log_note">日志只在本机生成，App 不会自动上传。导出前自动脱敏：地址里的 token / PIN、以及快捷指令内容都不会写进去。生成后由你选择分享给谁。</string>
+    <string name="settings_log_fail">生成日志失败</string>
 </resources>

@@ -80,12 +80,38 @@ gradle assembleDebug
 - 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)：`versionName` 递增，`versionCode` 必须同步 +1
 - 用户可见的改动写进 `CHANGELOG.md` 的 `[未发布]` 段；发版时把它挪到对应版本标题下
 
+### 🔴 改一处 → 全库 grep（硬纪律）
+
+版本号、端口、约定字符串这类「口径」**散落在多处**，改一处必须**全库查一遍**，否则就是静默漂移。
+唯一事实源 = `app/build.gradle`；其余都是**副本**（README / CHANGELOG / 工作区文档 / 交接摘要）。
+
+```powershell
+# 升版时把 <旧版本号> / <新版本号> 换掉，跑一遍，逐条确认改或标注「历史快照，不回改」
+$roots = @("D:\RJ\ai\造物工坊","D:\RJ\ai\AI\01_工作区\建议\DSH文档\卡片","D:\RJ\ai\DSH\DSH环境记忆系统\会话交接")
+foreach($r in $roots){
+  Get-ChildItem $r -Recurse -File -Include *.md,*.gradle,*.json,*.yml -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\|\\build\\|\\\.git\\' } |
+    Select-String -Pattern "<旧版本号>|<新版本号>" |
+    ForEach-Object { "{0}:{1}  {2}" -f $_.Path, $_.LineNumber, $_.Line.Trim() }
+}
+```
+
+**历史快照不回改**：`02_产物\` 里的落地/发布记录、已出的工单 —— 它们是当时的凭据，回改即失去审计价值。
+
+> 同一条纪律也适用于**端口**（例：扫描候选端口 `3082/3081/3080`、DSH 的 `3080/3082/3090`）与
+> **跨端契约字符串**（例：mDNS 服务类型 `_dsh._tcp.`）—— 改一处就 grep 另一处，两边必须一致。
+
 ## 七、发布（维护者）
 
 1. 改 `app/build.gradle` 的 `versionName` / `versionCode`
 2. 整理 `CHANGELOG.md`
-3. `./gradlew assembleRelease`
-4. 在 GitHub Releases 新建 tag（`vX.Y.Z`）并上传 APK
+3. **先提交、确保 `git status` 干净**，再从这棵树上构建
+   —— APK 里会写入**构建时的 git revision**（`META-INF/version-control-info.textproto`）：
+   带未提交改动构建 ⇒ tag 指不到真正构建的那棵树，**哈希就无法核验**（v1.3.2 踩过）
+4. 构建 + 核验 + 归档 + 发布：`pwsh -File <workspace>\scripts\release.ps1 -Publish -NotesFile <notes>`
+   （脚本默认**不发布**，`-Publish` 需维护者明确同意）
+5. 交叉核对：**本地构建 = 远端下载 = Release Notes 里的 SHA-256**（三方一致才算发成功）
+6. 在 GitHub Releases 新建 tag（`vX.Y.Z`）并上传 APK
    —— **APK 不入库**（仓库根目录不放 APK，`.gitignore` 已忽略 `*.apk`）
 
 ## 八、🔒 安全问题

@@ -48,5 +48,18 @@
             android:exported="false"
             android:label="@string/about_title" />
 
+        <!-- 导出诊断日志（批 3-5）：只读暴露 cacheDir/exports/，供系统分享面板读取。
+             ⚠️ exported=false + grantUriPermissions：只有用户当次选中的 App 能拿到那一份文件；
+             不需要任何存储权限（本 App 至今零运行时权限）。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="app.dshmobile.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 </manifest>
