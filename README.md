@@ -185,6 +185,7 @@ dsh web --port 3080 --no-open
 - **App 自身唯一的网络行为**就是访问你填的那个地址；「检查更新」也只是交给系统浏览器打开 GitHub 页面
 - 无广告、无统计、无第三方 SDK
 - 只声明 **3 个权限**：`INTERNET` · `ACCESS_NETWORK_STATE` · `CHANGE_WIFI_MULTICAST_STATE`（mDNS 组播锁用）
+  （打包后清单里另有 1 条 androidx 自动生成的应用自有权限，不涉及用户数据 —— 见 [PRIVACY.md](PRIVACY.md)）
 
 > 完整口径（含「本机数据未加密」这条**已知限制**）见 [**PRIVACY.md**](PRIVACY.md)。
 
