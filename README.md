@@ -124,7 +124,7 @@ dsh web --port 3080 --no-open
 不想每次手动下载重装，可以用 [Obtainium](https://github.com/ImranR98/Obtainium) 订阅本仓库 ——
 它盯着 GitHub Release，**有新版本会通知你，并可后台静默安装**（静默需 Android 12+，且 App 由 Obtainium 装的）。
 
-[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-订阅本仓库-blueviolet.svg)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22app.dshmobile%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2FLHN-xiao-hai-tun%2Fdsh-mobile%22%2C%22author%22%3A%22LHN-xiao-hai-tun%22%2C%22name%22%3A%22DSH%20Mobile%22%2C%22preferredApkIndex%22%3A0%2C%22additionalSettings%22%3A%22%7B%5C%22apkFilterRegEx%5C%22%3A%5C%22%5E%5BdD%5DSH-Mobile-v%5B0-9.%5D%2B%5C%5C.apk%24%7C%5Edsh-mobile-v%5B0-9.%5D%2B%5C%5C.apk%24%5C%22%7D%22%7D)
+[![Get it on Obtainium](https://img.shields.io/badge/Obtainium-订阅本仓库-blueviolet.svg)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7b%22id%22%3a%22app.dshmobile%22%2c%22url%22%3a%22https%3a%2f%2fgithub.com%2fLHN-xiao-hai-tun%2fdsh-mobile%22%2c%22author%22%3a%22LHN-xiao-hai-tun%22%2c%22name%22%3a%22DSH%20Mobile%22%7d)
 
 > 手动添加也行：Obtainium → `Add App` → 源选 **GitHub** → 填 `https://github.com/LHN-xiao-hai-tun/dsh-mobile`。
 
@@ -134,7 +134,7 @@ dsh web --port 3080 --no-open
 |---|---|
 | `dsh-mobile-vX.Y.Z.apk` | ✅ **要装的就是它** —— 已签名（与历史版本同一个密钥，可直接覆盖安装） |
 | `dsh-mobile-vX.Y.Z.apk.sha256` | 它的 SHA-256（下载后可核对） |
-| `dsh-mobile-vX.Y.Z-unsigned.apk` | ⚠️ CI 出的**未签名**占位包（仅用于校验/留痕），**别装** ⇒ 上面的 Deep Link 已带正则把它排除 |
+| `dsh-mobile-vX.Y.Z-unsigned.apk` | ⚠️ CI 出的**未签名**占位包（仅用于校验/留痕），**别装** —— 正式签名包上传后它会被**自动删掉**，所以正常情况下你看不到它 |
 
 > 因此 **v1.3.10 起资产名与旧版不同**（旧版是 `DSH-Mobile-vX.Y.Z.apk`）：Obtainium 会自动用新版，
 > 手动下载的话按上表认名字即可。
