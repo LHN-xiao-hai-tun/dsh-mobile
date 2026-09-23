@@ -228,6 +228,17 @@ public class SettingsActivity extends Activity {
         });
         root.addView(exportLog);
 
+        // 「连接诊断」入口（v1.3.9 · B1）：连不上时别只给一句提示 —— 逐项探一遍并给下一步
+        Button diag = new Button(this);
+        diag.setText(R.string.diag_title);
+        diag.setAllCaps(false);
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        dlp.topMargin = (int) (8 * d);
+        diag.setLayoutParams(dlp);
+        diag.setOnClickListener(v -> startActivity(new Intent(this, DiagnosticsActivity.class)));
+        root.addView(diag);
+
         // 「关于」入口：版本 / 许可 / 致谢 / 检查更新
         Button about = new Button(this);
         about.setText(R.string.about_heading);

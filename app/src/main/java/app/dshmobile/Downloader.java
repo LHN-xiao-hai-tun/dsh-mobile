@@ -379,13 +379,18 @@ final class Downloader {
         }
         if (c instanceof HttpsURLConnection) {
             HttpsURLConnection h = (HttpsURLConnection) c;
-            h.setSSLSocketFactory(sslContext(ctx, hostOf(url)).getSocketFactory());
+            h.setSSLSocketFactory(sslContextFor(ctx, hostOf(url)).getSocketFactory());
             // ⚠️ 刻意**不**自定义 HostnameVerifier —— 主机名校验保持系统默认（不能放）
         }
         return c;
     }
 
-    private static SSLContext sslContext(Context ctx, String host) throws Exception {
+    /**
+     * 本 App 的 https 信任口径（包级可见 —— **连接诊断 B1 复用它**，这样"诊断说的"和"真连时的"必然同口径）。
+     *
+     * ⚠️ 别在这个方法里放宽任何东西：它就是"系统信任 → 失败才回落用户亲手确认过的指纹"。
+     */
+    static SSLContext sslContextFor(Context ctx, String host) throws Exception {
         SSLContext sc = SSLContext.getInstance("TLS");
         sc.init(null, new TrustManager[]{ trustManager(ctx, host) }, new java.security.SecureRandom());
         return sc;

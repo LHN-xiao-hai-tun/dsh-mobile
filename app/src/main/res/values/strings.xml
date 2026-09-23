@@ -178,4 +178,67 @@
 
     <!-- ═══ v1.3.9 · 渲染进程被杀兜底（MainActivity.onRenderProcessGone） ═══ -->
     <string name="render_gone_recovering">页面出问题了，正在重载…</string>
+
+    <!-- ═══ v1.3.9 · B1 连接诊断（只读体检 + 下一步怎么办） ═══ -->
+    <string name="diag_title">连接诊断</string>
+    <string name="diag_hint">只读体检：手机网络 → 地址 → 端口 → 证书 → 服务响应。\n不会修改你的任何配置，也不会连接第三方 —— 只连你自己填过的地址（含「最近连接」里的历史）。</string>
+    <string name="diag_run">重新诊断</string>
+    <string name="diag_running">正在诊断…</string>
+    <string name="diag_copy">复制诊断报告</string>
+    <string name="diag_copied">报告已复制</string>
+    <string name="diag_copy_fail">复制失败（剪贴板不可用）</string>
+    <string name="diag_report_title">DSH 连接诊断报告</string>
+    <string name="diag_sum_ok">一切正常</string>
+    <string name="diag_sum_warn">能连，但有需要注意的地方</string>
+    <string name="diag_sum_bad">连不上 —— 原因见下面红色那行</string>
+
+    <string name="diag_item_network">手机网络</string>
+    <string name="diag_item_url">配置地址</string>
+    <string name="diag_item_port">配置端口可达</string>
+    <string name="diag_item_ports">同机其它常用端口</string>
+    <string name="diag_item_cert">服务器证书</string>
+    <string name="diag_item_http">服务响应</string>
+    <string name="diag_item_history">「最近连接」里的其它地址</string>
+
+    <string name="diag_net_ok">已联网（%1$s）</string>
+    <string name="diag_net_none">没有检测到可用网络</string>
+    <string name="diag_adv_net_none">先打开 WiFi 或移动数据 —— 连不上时最先要排除的就是这个</string>
+    <string name="diag_url_none">还没填服务器地址</string>
+    <string name="diag_adv_url_none">到设置页填上你现在跑 DSH 的地址</string>
+    <string name="diag_url_ok">%1$s（%2$s）</string>
+    <string name="diag_scheme_tls">HTTPS</string>
+    <string name="diag_scheme_cleartext">明文 HTTP</string>
+    <string name="diag_adv_public_cleartext">公网地址 + 明文：App 默认会拦下来。公网请改用 HTTPS，或用 Tailscale / ZeroTier 组网</string>
+    <string name="diag_port_open">%1$s:%2$d 可以连上</string>
+    <string name="diag_port_closed">%1$s:%2$d 连不上（TCP 层就没通）</string>
+    <string name="diag_adv_other_port">多半是端口写错了：同一台电脑的 %1$d 是通的 —— 把地址里的端口改成它试试</string>
+    <string name="diag_adv_private_closed">按顺序查：① 电脑上的 DSH 还在跑吗 ② 电脑防火墙放行了吗 ③ 手机和电脑在同一个网络吗</string>
+    <string name="diag_adv_public_closed">这个地址不可达：检查地址是否写错、以及服务是否对外提供</string>
+    <string name="diag_hint_other_port">顺带一提：这台机器上 %1$d 是通的 —— 如果 DSH 就跑在它上面，把地址里的端口改成它即可</string>
+    <string name="diag_ports_hint">通的：%1$s</string>
+    <string name="diag_ports_none">这三个都不通</string>
+    <string name="diag_ports_all">本次探测的端口：%1$s</string>
+    <string name="diag_cert_ok">指纹与你确认过的一致</string>
+    <string name="diag_cert_system">系统信任的机构签发（不需要你确认指纹）</string>
+    <string name="diag_cert_untrusted">系统不信任，且你还没确认过它的指纹</string>
+    <string name="diag_cert_changed">指纹与本机记录的不一致（可能是换了证书，也可能是中间人）</string>
+    <string name="diag_cert_skipped">这次连接没走到证书校验</string>
+    <string name="diag_cert_none">读不到服务器证书</string>
+    <string name="diag_cert_fp">指纹：%1$s</string>
+    <string name="diag_adv_cert_changed">如果你没有主动换过证书，先别继续 —— 换网络再试；确实换过就重新确认一次</string>
+    <string name="diag_adv_cert_untrusted">先用本 App 打开一次该地址，核对指纹后点「信任并继续」</string>
+    <string name="diag_http_ok">HTTP %1$d（正常）</string>
+    <string name="diag_http_auth">HTTP %1$d（服务在，但要登录或没有权限）</string>
+    <string name="diag_http_404">HTTP %1$d（端口通了，但这个路径没有页面 —— 可能不是 DSH）</string>
+    <string name="diag_http_5xx">HTTP %1$d（服务端自己报错）</string>
+    <string name="diag_http_other">HTTP %1$d</string>
+    <string name="diag_http_failed">没能拿到响应</string>
+    <string name="diag_http_raw">原始错误：%1$s</string>
+    <string name="diag_adv_http_failed">看上面几行：端口或证书那行通常就是原因</string>
+    <string name="diag_adv_http_auth">打开 App 主界面登录一次（DSH 开了访问密码时就是这样）</string>
+    <string name="diag_adv_http_5xx">这是服务端的问题：去看电脑上 DSH 那边的日志</string>
+    <string name="diag_adv_http_404">确认这个地址确实是 DSH（它默认在根路径提供页面）</string>
+    <string name="diag_hist_ok">%1$s —— 现在能连上</string>
+    <string name="diag_hist_bad">%1$s —— 连不上</string>
+    <string name="diag_adv_hist">上面能连上的那条，很可能就是电脑换了 IP 之后的新地址 —— 回设置页点它即可填入</string>
 </resources>

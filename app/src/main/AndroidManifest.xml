@@ -48,6 +48,13 @@
             android:exported="false"
             android:label="@string/about_title" />
 
+        <!-- v1.3.9 · B1 连接诊断页：只读探针（网络/端口/证书/响应），不申请任何新权限 -->
+        <activity
+            android:name=".DiagnosticsActivity"
+            android:exported="false"
+            android:label="@string/diag_title"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize" />
+
         <!-- 导出诊断日志（批 3-5）：只读暴露 cacheDir/exports/，供系统分享面板读取。
              ⚠️ exported=false + grantUriPermissions：只有用户当次选中的 App 能拿到那一份文件；
              不需要任何存储权限（本 App 至今零运行时权限）。 -->
