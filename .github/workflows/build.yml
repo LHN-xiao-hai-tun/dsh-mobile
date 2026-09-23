@@ -202,6 +202,93 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # ── ⑥ 发布（v1.3.10 新增 · tag `v*` 触发）──────────────────────────
+  #
+  # 🔴 签名口径（**B 路 · 保守**，用户 2026-09-23 拍板）：
+  #   CI 里**没有 keystore**（密钥永不出本机）⇒ 本作业产出的是**未签名** APK。
+  #   为了**不让 Obtainium 误抓未签名包**，它命名带 `-unsigned` 后缀；
+  #   正式签名包由本地 `scripts\release.ps1 -Publish` 签名后以**规范名** `dsh-mobile-vX.Y.Z.apk`
+  #   上传并**删掉这里的占位**（最终 Release 只留干净的一对资产）。
+  #   ⇒ 本作业的价值：**打 tag 即自动出包 + 校验和 + Release**，不依赖本机是否开着。
+  #
+  # ⚠️ 两条硬约束：
+  #   ① `permissions` 全局是 `contents: read` ⇒ **只在本作业**提到 `contents: write`（建 Release 要），别全局提权；
+  #   ② 必须 `needs: [lint, test]` ⇒ **红灯不发版**（在红的基础上自动化 = 自动发坏包）。
+  release:
+    name: release（tag 触发）
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write            # ⚠️ 仅本作业；建 Release / 上传资产需要
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '8.9'
+
+      - name: 构建 release APK（CI 内无 keystore ⇒ 未签名）
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: 产物命名 + 生成 .sha256
+        id: pack
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"                       # 例如 v1.3.10
+          APK_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          OUT="dsh-mobile-${TAG}-unsigned.apk"           # ⚠️ 带 -unsigned ⇒ Obtainium 不会误抓
+          cp "$APK_SRC" "$OUT"
+          sha256sum "$OUT" | awk '{print $1}' > "${OUT}.sha256"
+          # .sha256 里只放哈希本体（Obtainium / 用户核对都用得上）
+          echo "== 产物 =="; ls -l "$OUT" "${OUT}.sha256"; cat "${OUT}.sha256"
+          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: 建 Release 并上传资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          APK="dsh-mobile-${TAG}-unsigned.apk"
+          HASH=$(cat "${APK}.sha256")
+          SIZE=$(stat -c%s "$APK")
+          cat > /tmp/notes.md <<EOF
+          ## DSH Mobile ${TAG}（CI 自动出包 · 未签名占位）
+
+          | 项 | 值 |
+          |---|---|
+          | 版本 | \`${VER}\` |
+          | 最低 Android | **8.0（API 26）** |
+          | 体积 | ${SIZE} B |
+          | SHA-256 | \`${HASH}\` |
+          | 签名 | ⚠️ **未签名**（CI 无 keystore）—— 仅供校验与占位 |
+
+          > 正式**已签名**的安装包（\`dsh-mobile-${TAG}.apk\`）由维护者用本地密钥签名后上传，
+          > 并会删除本占位文件。**装到手机上请用已签名那一个**。
+          EOF
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --notes-file /tmp/notes.md \
+            --target "$GITHUB_SHA" \
+            "${APK}#${APK}" "${APK}.sha256#${APK}.sha256"
+
+      - name: 回查 Release 资产（自检）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release view "${GITHUB_REF_NAME}" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | "\(.name)  \(.size) B"'
+
   # 独立作业：确认 gradlew 本身可用（shebang 为 LF、jar 在库）
   # —— 曾经的缺陷：仓库只有 gradlew.bat，README 里的 ./gradlew 与 CI 都跑不起来。
   wrapper:

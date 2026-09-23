@@ -14,6 +14,14 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.CAMERA" />
 
+    <!-- 🔴 v1.3.10 修（CI lint 报的真 bug，不是洁癖）：只声明 CAMERA 权限而不写 uses-feature，
+         系统会**推断**出「本 App 需要相机硬件」⇒ 没有相机的设备（部分平板 / Chromebook / 电视 /
+         车机）在商店侧**不可见或装不上**。而我们这台平板正在做互通 ⇒ 会打到自己。
+         ⇒ 相机只是**可选功能**（D2 拍照上传，且默认关闭）⇒ 必须显式声明 required="false"。
+         Lint 规则：PermissionImpliesUnsupportedChromeOsHardware（Error 级，会让 CI 变红）。 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

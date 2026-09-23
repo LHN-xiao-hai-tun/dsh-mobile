@@ -7,7 +7,38 @@
 
 ## [未发布]
 
-## [1.3.9] - 2026-09-23（**进行中**）
+## [1.3.10] - 2026-09-23
+
+> 给发布流程本身做了一次升级：**修掉一条会让无相机设备装不上的真 bug**，
+> 并加上「**打 tag 即自动出包发 Release**」+ **Obtainium 订阅更新**。
+
+### 修复
+
+- 🔴 **相机权限缺配套 `uses-feature`**（CI lint 报的 **Error** 级真 bug，不是洁癖）：
+  v1.3.9 加了 `CAMERA` 权限却没写 `<uses-feature android:name="android.hardware.camera" required="false">`
+  ⇒ 系统会**推断「本 App 必须有相机」** ⇒ **没有相机的设备（部分平板 / Chromebook / 电视 / 车机）
+  在商店侧不可见或装不上**。本 App 的相机只是「可选功能」（D2 拍照上传，且**默认关闭**）
+  ⇒ 显式声明 `required="false"`（`camera` 与 `camera.autofocus` 两条）。
+  - 复现与验收：本地 `gradlew lintRelease` 从「Lint found 1 errors」→ **BUILD SUCCESSFUL**；CI `lintRelease` 同步转绿。
+
+### 新增
+
+- **CI 自动发版作业（`release`）**：push tag `v*` 触发 → `assembleRelease` → 产出
+  **未签名 APK + `.sha256`** → 自动建 Release 并上传资产。
+  - ⚠️ **B 路（保守）**：CI 里**没有 keystore**（密钥永不出本机）⇒ CI 产物是**未签名**的，
+    命名带 `-unsigned` 后缀，**不会被 Obtainium 误抓**；正式签名包仍由本地 `scripts\release.ps1` 签名后
+    以**规范名**上传，并**删掉占位**（最终 Release 只留一对干净资产）。
+  - ⚠️ 作业级 `permissions: contents: write`（**不全局提权**）；且 `needs: [lint, test]` ⇒ **红灯不发版**。
+- **Obtainium 分发接入**：Release 资产命名固定为 **`dsh-mobile-vX.Y.Z.apk`** + **`dsh-mobile-vX.Y.Z.apk.sha256`**
+  （Obtainium 靠文件名正则筛 APK）；Release Notes 必含**版本号 / 变更摘要 / SHA-256 / 最低 Android 版本**；
+  README 增加 Obtainium 说明与 **Deep Link**（点一下即导入订阅，不用手填）。
+
+### 变更
+
+- 发布资产命名：`DSH-Mobile-vX.Y.Z.apk` → **`dsh-mobile-vX.Y.Z.apk`**（小写 + 连字符，与 `.apk.sha256` 成对）。
+  ⚠️ 历史 Release（≤ v1.3.9）仍是旧命名，**不回改**（那是发布凭据）。
+
+## [1.3.9] - 2026-09-23
 
 > 用户 2026-09-23 09:4x 点单「**全部**」—— 一批 6 项：
 > **A1** 渲染进程被杀兜底 · **A2** 补验 B2 证书判据 · **B1** 连接诊断页 · **B2** 多地址管理增强 ·
