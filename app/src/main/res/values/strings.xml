@@ -138,8 +138,20 @@
     <string name="upload_no_picker">这台设备上没有可用的文件选择器</string>
     <!-- 下载：本版只做「不再点了没反应」，给两条不碰安全模型的路 -->
     <string name="dl_title">网页要下载文件</string>
-    <string name="dl_msg_fmt">来源：\n%1$s\n\n本版本不会替你把文件下载到手机里（那需要处理登录凭据与自签证书，正在设计）。\n你可以用系统浏览器打开，或先复制链接。</string>
+    <string name="dl_msg_fmt">来源：\n%1$s\n\n选「下载到本机」会把文件存到你选的位置（不上传、不自动打开）。</string>
     <string name="dl_open_browser">用浏览器打开</string>
     <string name="dl_copy_link">复制链接</string>
     <string name="dl_clip_label">下载链接</string>
+
+    <!-- ═══ v1.3.8 · 网页下载「应用内落盘」（B2） ═══ -->
+    <string name="dl_msg_nofetch_fmt">来源：\n%1$s\n\n这个链接不是网页地址（http/https），不能下载到本机。\n你可以复制链接后用别的方式处理。</string>
+    <string name="dl_save">下载到本机</string>
+    <string name="dl_no_picker">这台设备上没有可用的保存位置选择器</string>
+    <string name="dl_busy">已经有一个下载在进行中</string>
+    <string name="dl_downloading">正在下载</string>
+    <string name="dl_starting">正在连接…</string>
+    <string name="dl_progress_fmt">已下载 %1$d KB / %2$d KB（%3$d%%）</string>
+    <string name="dl_progress_unknown_fmt">已下载 %1$d KB</string>
+    <string name="dl_done_fmt">已保存（%1$d KB）</string>
+    <string name="dl_failed_title">下载未完成</string>
 </resources>

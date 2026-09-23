@@ -1006,6 +1006,17 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQ_SAVE_DOWNLOAD) {
+            // 用户选好了落点 → 开始在后台把文件流式写进去
+            String url = pendingDownloadUrl;
+            pendingDownloadUrl = null;
+            if (resultCode == RESULT_OK && data != null && data.getData() != null && url != null) {
+                startDownloadTo(url, data.getData());
+            }
+            return;
+        }
+
         if (requestCode != REQ_FILE_CHOOSER) return;
         ValueCallback<Uri[]> cb = fileCallback;
         fileCallback = null;                       // 先清，保证"恰好一次"
@@ -1014,26 +1025,159 @@ public class MainActivity extends Activity {
         cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
     }
 
+    // ---------- v1.3.8 · 网页下载：应用内落盘（B2） ----------
+
+    /** SAF 落点请求码 */
+    private static final int REQ_SAVE_DOWNLOAD = 0x52;
+    /** 正在等用户选落点的那个下载地址 */
+    private String pendingDownloadUrl;
+    /** 下载进度对话框（下载中才非 null） */
+    private AlertDialog downloadDialog;
+    /** 用户点了「取消」的旗标（后台线程每读一块查一次） */
+    private java.util.concurrent.atomic.AtomicBoolean downloadCancel;
+
     /**
      * 网页触发了下载 —— 问用户想怎么办。
      *
-     * 本版只给两条**不碰安全模型**的路：用系统浏览器打开 / 复制链接。
-     * ⛔ 不在这里替用户发起网络请求：那要处理 Cookie 回放与自签证书信任（见设计文档 §4.3）。
+     * 三条路：**下载到本机**（v1.3.8 新增，SAF + 流式 + 指纹校验）· 用浏览器打开 · 复制链接。
+     * ⛔ 非 http/https 的链接**不给"下载到本机"**（伪协议一律只允许复制）。
      */
     private void askWhatToDoWithDownload(final String url) {
         if (url == null || url.isEmpty()) return;
         if (isFinishing()) return;
-        final String shown = url.length() > 120 ? url.substring(0, 120) + "…" : url;
-        new AlertDialog.Builder(this)
+        final String shown = url.length() > 160 ? url.substring(0, 160) + "…" : url;
+        final boolean canFetch = Downloader.isAllowedScheme(url);
+
+        // ⚠️ 这里**刻意自绘视图**，不用 AlertDialog 的 setMessage + setItems 组合 ——
+        //    实测（Android 8 模拟器）两者同用时**列表不渲染**（dump 里只有标题+消息+按钮）。
+        float dp = getResources().getDisplayMetrics().density;
+        int pad = (int) (20 * dp);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(pad, (int) (8 * dp), pad, 0);
+
+        TextView src = new TextView(this);
+        src.setText(getString(canFetch ? R.string.dl_msg_fmt : R.string.dl_msg_nofetch_fmt, shown));
+        src.setTextSize(14);
+        src.setLineSpacing(3 * dp, 1f);
+        box.addView(src);
+
+        final AlertDialog dlg = new AlertDialog.Builder(this)
                 .setTitle(R.string.dl_title)
-                .setMessage(getString(R.string.dl_msg_fmt, shown))
-                .setPositiveButton(R.string.dl_open_browser, (d, w) -> openInBrowser(url))
-                .setNeutralButton(R.string.dl_copy_link, (d, w) -> copyLink(url))
+                .setView(box)
                 .setNegativeButton(R.string.qc_cancel, null)
-                .show();
+                .create();
+
+        if (canFetch) box.addView(actionRow(getString(R.string.dl_save), dp, v -> {
+            dlg.dismiss();
+            startDownloadPickPlace(url);
+        }));
+        box.addView(actionRow(getString(R.string.dl_open_browser), dp, v -> {
+            dlg.dismiss();
+            openInBrowser(url);
+        }));
+        box.addView(actionRow(getString(R.string.dl_copy_link), dp, v -> {
+            dlg.dismiss();
+            copyLink(url);
+        }));
+
+        dlg.show();
     }
 
-    /** 交给系统浏览器（⚠️ 浏览器里可能没有 DSH 的会话 Cookie ⇒ 可能 401，这是本版已知代价） */
+    /** 下载选择框里的一行动作（自绘，避免依赖系统对话框的条目渲染） */
+    private TextView actionRow(String label, float dp, View.OnClickListener onClick) {
+        TextView t = new TextView(this);
+        t.setText(label);
+        t.setTextSize(16);
+        t.setGravity(Gravity.CENTER_VERTICAL);
+        int v = (int) (14 * dp);
+        t.setPadding(0, v, 0, v);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = (int) (6 * dp);
+        t.setLayoutParams(lp);
+        t.setClickable(true);
+        t.setOnClickListener(onClick);
+        return t;
+    }
+
+    /** 先让用户选落点（SAF：不需要任何权限） */
+    private void startDownloadPickPlace(String url) {
+        pendingDownloadUrl = url;
+        try {
+            startActivityForResult(
+                    Downloader.saveIntent(Downloader.nameFrom(url, null)), REQ_SAVE_DOWNLOAD);
+        } catch (Exception e) {
+            Log.w(TAG, "拉起保存位置选择器失败：" + e);
+            pendingDownloadUrl = null;
+            toast(getString(R.string.dl_no_picker));
+        }
+    }
+
+    /**
+     * 后台下载 + 进度对话框（可取消）。
+     * 进度回调在**后台线程**，所以每处更新都切回主线程。
+     */
+    private void startDownloadTo(final String url, final Uri target) {
+        if (downloadDialog != null) {          // 同一时刻只允许一个
+            toast(getString(R.string.dl_busy));
+            return;
+        }
+        downloadCancel = new java.util.concurrent.atomic.AtomicBoolean(false);
+        downloadDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.dl_downloading)
+                .setMessage(getString(R.string.dl_starting))
+                .setCancelable(false)
+                .setNegativeButton(R.string.qc_cancel, (d, w) -> {
+                    if (downloadCancel != null) downloadCancel.set(true);
+                })
+                .show();
+
+        Downloader.fetch(this, url, target, new Downloader.Progress() {
+            @Override
+            public void onProgress(long read, long total) {
+                runOnUiThread(() -> {
+                    if (downloadDialog == null || !downloadDialog.isShowing()) return;
+                    String msg = (total > 0)
+                            ? getString(R.string.dl_progress_fmt, read / 1024, total / 1024,
+                                        (int) (read * 100 / total))
+                            : getString(R.string.dl_progress_unknown_fmt, read / 1024);
+                    downloadDialog.setMessage(msg);
+                });
+            }
+
+            @Override
+            public void onDone(long bytes) {
+                runOnUiThread(() -> {
+                    dismissDownloadDialog();
+                    toast(getString(R.string.dl_done_fmt, bytes / 1024));
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    dismissDownloadDialog();
+                    // ⚠️ 只说结论，不弹"用某某应用打开" —— 绝不自动打开下载来的文件
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setTitle(R.string.dl_failed_title)
+                            .setMessage(message)
+                            .setPositiveButton(R.string.qc_close, null)
+                            .show();
+                });
+            }
+        }, downloadCancel);
+    }
+
+    private void dismissDownloadDialog() {
+        try {
+            if (downloadDialog != null && downloadDialog.isShowing()) downloadDialog.dismiss();
+        } catch (Exception ignored) { }
+        downloadDialog = null;
+        downloadCancel = null;
+    }
+
+    /** 交给系统浏览器（⚠️ 浏览器里可能没有 DSH 的会话 Cookie ⇒ 可能 401，这是"交给浏览器"的已知代价） */
     private void openInBrowser(String url) {
         try {
             Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
