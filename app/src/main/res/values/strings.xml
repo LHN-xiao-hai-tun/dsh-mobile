@@ -45,6 +45,18 @@
     <string name="about_unknown">未知</string>
     <string name="about_no_browser">没有可用的浏览器</string>
 
+    <!-- ═══ v1.3.9 · C1「检查更新」变真检查 ═══ -->
+    <string name="about_checking">正在查询…</string>
+    <string name="about_update_note">只有你点「检查更新」时才会联网查一次 —— 不会自动检查、不会自动下载。也可以自己去：%1$s</string>
+    <string name="about_update_newer_fmt">发现新版本：%1$s（当前 %2$s）</string>
+    <string name="about_update_latest_fmt">已是最新版本（当前 %1$s）</string>
+    <string name="about_update_notes">更新说明：</string>
+    <string name="about_update_open">打开下载页</string>
+    <string name="about_update_fail_rate">GitHub 限流了（未登录的查询每小时 60 次）—— 过一会儿再试，或直接打开下载页</string>
+    <string name="about_update_fail_net">网络不可用或查询超时 —— 检查网络后重试</string>
+    <string name="about_update_fail_http_fmt">查询失败：GitHub 返回 HTTP %1$d</string>
+    <string name="about_update_fail_parse">返回内容看不懂（可能被网络中间设备改过）—— 建议直接打开下载页看</string>
+
     <!-- ═══ 局域网扫描（v1.2.5 · LanScan） ═══ -->
     <string name="settings_scan">扫描局域网上的 DSH</string>
     <string name="settings_scan_running">正在扫描局域网…</string>
