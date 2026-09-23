@@ -154,4 +154,7 @@
     <string name="dl_progress_unknown_fmt">已下载 %1$d KB</string>
     <string name="dl_done_fmt">已保存（%1$d KB）</string>
     <string name="dl_failed_title">下载未完成</string>
+
+    <!-- ═══ v1.3.9 · 渲染进程被杀兜底（MainActivity.onRenderProcessGone） ═══ -->
+    <string name="render_gone_recovering">页面出问题了，正在重载…</string>
 </resources>

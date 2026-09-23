@@ -25,6 +25,7 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.SslErrorHandler;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -257,6 +258,40 @@ public class MainActivity extends Activity {
                 } else {
                     askTrustChanged(host, fp, remembered, handler);       // ③ 变更
                 }
+            }
+
+            /**
+             * v1.3.9 · **渲染进程被杀兜底**（⚠️ 本 App 此前**没有**这个覆写 —— 实测全仓 0 处）
+             *
+             * 系统内存吃紧时会回收 WebView 的**渲染进程**（sandboxed_process）。**不覆写这个回调的话，
+             * 框架默认会把整个 App 杀掉** —— 用户看到的是「用着用着 App 突然没了」，且没有任何提示
+             * （不是页面白屏那么温和）。
+             *
+             * 处置：**重启本 Activity**（等于从 onCreate 再走一遍正常路径）。
+             * 为什么不在原地重建 WebView：那要把 onCreate 里那一大段配置（WebChromeClient /
+             * WebViewClient / v1.3.0 加固设置）抽成可复用方法，改动面大、回归风险高；
+             * 而本 App 的页面状态（Cookie / LocalStorage / 登录态）**本就不在渲染进程里**，
+             * 重启后 loadUrl 会自然恢复（代价 = 页面重载一次，与断线重连同量级）。
+             *
+             * ⚠️ 必须返回 true —— 返回 false（或不覆写）框架就会杀进程。
+             */
+            @Override
+            public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail detail) {
+                Log.w(TAG, "WebView 渲染进程被回收（didCrash=" + detail.didCrash() + "），重启界面恢复");
+                try {
+                    toast(getString(R.string.render_gone_recovering));
+                    // ⚠️ 用 NEW_TASK | CLEAR_TASK（"清空任务后重建"）——**并且不要自己 finish()**。
+                    //    实测教训（2026-09-23）：MainActivity 是 `singleTask`，若用
+                    //    `CLEAR_TOP | NEW_TASK` 再 `finish()`，那个重启意图会**复用同一个实例**，
+                    //    紧接着的 finish() 就把刚恢复的界面关掉了（前台落到桌面、页面看似"没恢复"）。
+                    //    CLEAR_TASK 会先清掉任务里的旧实例，再起一个**全新实例**，正是这里要的语义。
+                    Intent restart = new Intent(MainActivity.this, MainActivity.class);
+                    restart.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(restart);
+                } catch (Exception e) {
+                    Log.w(TAG, "渲染进程回收后重启失败：" + e);
+                }
+                return true;
             }
         });
 
