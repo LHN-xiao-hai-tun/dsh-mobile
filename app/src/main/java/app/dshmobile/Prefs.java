@@ -396,4 +396,43 @@ final class Prefs {
         }
         return sb.toString();
     }
+
+    // ---------- 批量写入（v1.3.9 · C2 配置导入用） ----------
+    // ⚠️ 这几个是**导入专用**：一次性把整张表换掉（而不是逐条 push）。
+    //    地址本身仍走 setUrl（已验证过的路径），这里只补"整表替换"。
+
+    static void setHistoryAll(Context c, List<String> urls) {
+        List<String> out = new ArrayList<>();
+        if (urls != null) {
+            for (String u : urls) {
+                String n = normalize(u);
+                if (!n.isEmpty() && !out.contains(n)) {
+                    out.add(n);
+                }
+            }
+        }
+        writeSecret(c, KEY_HISTORY, join(out));
+    }
+
+    static void setLabelsAll(Context c, Map<String, String> m) {
+        writeSecret(c, KEY_LABELS, joinLabels(m));
+    }
+
+    static void setTemplatesAll(Context c, List<String> tpls) {
+        if (tpls == null) {
+            return;
+        }
+        for (int i = 0; i < TEMPLATE_COUNT; i++) {
+            String v = i < tpls.size() ? tpls.get(i) : "";
+            writeSecret(c, "tpl_" + i, v == null ? "" : v.trim());
+        }
+    }
+
+    static void setTrustedCertsAll(Context c, Map<String, String> m) {
+        writeSecret(c, KEY_TRUST, joinTrust(m));
+    }
+
+    static void setAckedAll(Context c, Set<String> hosts) {
+        writeSecret(c, KEY_ACK, hosts == null ? "" : String.join(SEP, hosts));
+    }
 }

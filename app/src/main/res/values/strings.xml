@@ -271,4 +271,22 @@
     <string name="set_hist_delete_msg">「%1$s」会从最近连接里移除。\n（不影响你当前配置的地址，也不会动别的记录。）</string>
     <string name="set_hist_delete_ok">删除</string>
     <string name="set_hist_deleted">已删除</string>
+
+    <!-- ═══ v1.3.9 · C2 配置导出 / 导入 ═══ -->
+    <string name="cfg_section">配置备份（换机用）</string>
+    <string name="cfg_note">地址、最近连接、名字、快捷指令模板、证书信任都加密存在本机（密钥不跟着云备份走），换机会全部丢失。导出成一份文件即可带走 —— ⛔ 文件里没有 PIN、没有 Cookie、没有任何密钥，但有你的地址，别往公开的地方传。</string>
+    <string name="cfg_export">导出配置到文件…</string>
+    <string name="cfg_import">从文件导入配置…</string>
+    <string name="cfg_export_ok">已导出（%1$d 条历史地址 · %2$d 条证书信任）</string>
+    <string name="cfg_export_fail">导出失败：写不进去</string>
+    <string name="cfg_import_ok">已导入（%1$d 条历史地址 · %2$d 条证书信任）</string>
+    <string name="cfg_import_fail">导入失败：读不出这个文件</string>
+    <string name="cfg_import_not_ours">这个文件不是本 App 导出的配置（文件头不对），已取消</string>
+    <string name="cfg_import_empty">文件里没有任何可导入的内容</string>
+    <string name="cfg_import_confirm_title">导入这份配置？</string>
+    <string name="cfg_import_confirm_msg">将用文件里的内容替换本机的：\n\n服务器地址：%1$s\n最近连接：%2$d 条\n地址名字：%3$d 个\n快捷指令模板：%4$d 条\n证书信任：%5$d 条\n\n（这几项会被覆盖，别的内容不动。）</string>
+    <string name="cfg_import_no_url">（文件里没有地址，保持本机现在的）</string>
+    <string name="cfg_import_skipped">⚠️ 文件里有 %1$d 行看不懂，已跳过；其余照常导入。</string>
+    <string name="cfg_import_go">确认导入</string>
+    <string name="cfg_no_picker">这台设备上没有可用的文件选择器</string>
 </resources>

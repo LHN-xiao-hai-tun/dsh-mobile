@@ -28,6 +28,10 @@ public class SettingsActivity extends Activity {
 
     /** 导出日志：SAF 文件选择器的请求码（批 3-5） */
     private static final int REQ_SAVE_LOG = 0x5A01;
+    /** 导出配置：SAF 文件选择器的请求码（v1.3.9 · C2） */
+    private static final int REQ_SAVE_CONFIG = 0x5A02;
+    /** 导入配置：SAF 打开文件的请求码（v1.3.9 · C2） */
+    private static final int REQ_OPEN_CONFIG = 0x5A03;
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -37,6 +41,16 @@ public class SettingsActivity extends Activity {
             String err = LogExporter.writeTo(this, data.getData());
             String msg = (err == null) ? getString(R.string.settings_log_saved) : err;
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (requestCode == REQ_SAVE_CONFIG && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+            writeConfigTo(data.getData());
+            return;
+        }
+        if (requestCode == REQ_OPEN_CONFIG && resultCode == RESULT_OK
+                && data != null && data.getData() != null) {
+            readConfigFrom(data.getData());
         }
     }
 
@@ -202,6 +216,36 @@ public class SettingsActivity extends Activity {
         });
         root.addView(reset);
 
+        // ---- v1.3.9 · C2：配置导出 / 导入（换机时把地址与证书信任一并带走）----
+        TextView cfgLabel = new TextView(this);
+        cfgLabel.setTextSize(13);
+        cfgLabel.setAlpha(0.6f);
+        cfgLabel.setPadding(0, (int) (28 * d), 0, (int) (4 * d));
+        cfgLabel.setText(R.string.cfg_section);
+        root.addView(cfgLabel);
+
+        TextView cfgNote = new TextView(this);
+        cfgNote.setTextSize(11f);
+        cfgNote.setAlpha(0.6f);
+        cfgNote.setText(R.string.cfg_note);
+        root.addView(cfgNote);
+
+        Button cfgExport = new Button(this);
+        cfgExport.setText(R.string.cfg_export);
+        cfgExport.setAllCaps(false);
+        LinearLayout.LayoutParams cxlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cxlp.topMargin = (int) (8 * d);
+        cfgExport.setLayoutParams(cxlp);
+        cfgExport.setOnClickListener(v -> exportConfig());
+        root.addView(cfgExport);
+
+        Button cfgImport = new Button(this);
+        cfgImport.setText(R.string.cfg_import);
+        cfgImport.setAllCaps(false);
+        cfgImport.setOnClickListener(v -> importConfig());
+        root.addView(cfgImport);
+
         // 导出诊断日志（批 3-5）：本机生成 + 脱敏 + 交给分享面板；App 从不自动上传
         TextView logNote = new TextView(this);
         logNote.setText(R.string.settings_log_note);
@@ -253,6 +297,135 @@ public class SettingsActivity extends Activity {
         root.addView(about);
 
         setContentView(scroll);
+    }
+
+    /* ---------- v1.3.9 · C2：配置导出 / 导入 ---------- */
+
+    /** 把本机配置拼成一份快照（只搬用户自己的东西：地址/历史/名字/模板/证书指纹/明文确认） */
+    private ConfigPortable.Snapshot snapshotOfPrefs() {
+        ConfigPortable.Snapshot s = new ConfigPortable.Snapshot();
+        s.url = Prefs.url(this);
+        s.history.addAll(Prefs.history(this));
+        s.labels.putAll(Prefs.labels(this));
+        s.templates.addAll(Prefs.templates(this));
+        s.certs.putAll(Prefs.trustedCerts(this));
+        s.acks.addAll(Prefs.ackedHosts(this));
+        return s;
+    }
+
+    private void exportConfig() {
+        String stamp = new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.ROOT)
+                .format(new java.util.Date());
+        try {
+            Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("text/plain");
+            i.putExtra(Intent.EXTRA_TITLE, ConfigPortable.suggestedName(stamp));
+            startActivityForResult(i, REQ_SAVE_CONFIG);
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.cfg_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void writeConfigTo(android.net.Uri target) {
+        ConfigPortable.Snapshot s = snapshotOfPrefs();
+        try {
+            java.io.OutputStream out = getContentResolver().openOutputStream(target, "w");
+            if (out == null) {
+                Toast.makeText(this, R.string.cfg_export_fail, Toast.LENGTH_LONG).show();
+                return;
+            }
+            out.write(ConfigPortable.serialize(s).getBytes("UTF-8"));
+            out.flush();
+            out.close();
+            Toast.makeText(this, getString(R.string.cfg_export_ok,
+                    s.history.size(), s.certs.size()), Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.cfg_export_fail, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void importConfig() {
+        try {
+            Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            i.addCategory(Intent.CATEGORY_OPENABLE);
+            i.setType("*/*");
+            startActivityForResult(i, REQ_OPEN_CONFIG);
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.cfg_no_picker, Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** 读文件 → 解析 → **先让用户确认**（外部输入，绝不默默覆盖），确认后才落盘 */
+    private void readConfigFrom(android.net.Uri source) {
+        String raw;
+        try {
+            java.io.InputStream in = getContentResolver().openInputStream(source);
+            if (in == null) {
+                Toast.makeText(this, R.string.cfg_import_fail, Toast.LENGTH_LONG).show();
+                return;
+            }
+            java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+            byte[] b = new byte[8192];
+            int n;
+            int total = 0;
+            while ((n = in.read(b)) > 0) {
+                total += n;
+                if (total > 1024 * 1024) break;              // 配置文件不可能超过 1 MB
+                buf.write(b, 0, n);
+            }
+            in.close();
+            raw = new String(buf.toByteArray(), "UTF-8");
+        } catch (Exception e) {
+            Toast.makeText(this, R.string.cfg_import_fail, Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        final ConfigPortable.Snapshot s = ConfigPortable.parse(raw);
+        if (!s.headerOk) {
+            // 如实留痕：导入是"吃外部文件"的路径，被拒的原因要能在日志里看到
+            android.util.Log.w("DSHMobile", "配置导入被拒：文件头不对（" + raw.length() + " 字节）");
+            Toast.makeText(this, R.string.cfg_import_not_ours, Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (s.isEmpty()) {
+            android.util.Log.w("DSHMobile", "配置导入被拒：文件里没有可导入的内容");
+            Toast.makeText(this, R.string.cfg_import_empty, Toast.LENGTH_LONG).show();
+            return;
+        }
+        android.util.Log.w("DSHMobile", "配置导入待确认：地址=" + (s.url.isEmpty() ? "(无)" : s.url)
+                + " 历史=" + s.history.size() + " 名字=" + s.labels.size()
+                + " 模板=" + s.templates.size() + " 证书=" + s.certs.size()
+                + " 跳过坏行=" + s.skipped);
+
+        String msg = getString(R.string.cfg_import_confirm_msg,
+                s.url.isEmpty() ? getString(R.string.cfg_import_no_url) : s.url,
+                s.history.size(), s.labels.size(), s.templates.size(), s.certs.size())
+                + (s.skipped > 0 ? "\n\n" + getString(R.string.cfg_import_skipped, s.skipped) : "");
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.cfg_import_confirm_title)
+                .setMessage(msg)
+                .setPositiveButton(R.string.cfg_import_go, (dd, w) -> {
+                    applySnapshot(s);
+                    Toast.makeText(this, getString(R.string.cfg_import_ok,
+                            s.history.size(), s.certs.size()), Toast.LENGTH_LONG).show();
+                    recreate();
+                })
+                .setNegativeButton(R.string.qc_cancel, null)
+                .show();
+    }
+
+    /** 落盘：整体替换这几张表（只在用户点「确认导入」后调用） */
+    private void applySnapshot(ConfigPortable.Snapshot s) {
+        if (!s.url.isEmpty()) {
+            Prefs.setUrl(this, Prefs.normalize(s.url));
+        }
+        Prefs.setHistoryAll(this, s.history);
+        Prefs.setLabelsAll(this, s.labels);
+        Prefs.setTemplatesAll(this, s.templates);
+        Prefs.setTrustedCertsAll(this, s.certs);
+        Prefs.setAckedAll(this, s.acks);
     }
 
     /**
