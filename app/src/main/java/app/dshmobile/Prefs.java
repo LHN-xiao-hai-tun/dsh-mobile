@@ -38,8 +38,7 @@ final class Prefs {
     private static final String KEY_TRUST = "trust";
     private static final String KEY_ACK = "ack";
     /** v1.3.9 · B2：地址命名表（每行 `地址\t名字`） */
-    private static final String KEY_LABELS = "labels";
-    private static final String SEP = "\n";
+    private static final String KEY_LABELS = "labels";    private static final String SEP = "\n";
 
     /** 连接历史最多保留条数 */
     static final int HISTORY_MAX = 5;
@@ -77,6 +76,32 @@ final class Prefs {
     private static void writeSecret(Context c, String key, String value) {
         String enc = SecretStore.encrypt(value);
         get(c).edit().putString(key, enc != null ? enc : value).apply();
+    }
+
+    // ---------- 功能开关（v1.3.9 · D1/D2 权限类功能） ----------
+    // ⚠️ 这两个是"要不要用某个功能"的开关，**不加密**（加密它没有收益，只是成本），
+    //    与 fab_x/fab_y 同类。它们**默认 false** —— 与 PRIVACY.md §四「默认不申请 · 按功能开启」一致：
+    //    关着的时候既不申请权限、也不申请运行时的系统弹窗。
+
+    private static final String KEY_DL_NOTIFY = "dl_notify";
+    private static final String KEY_CAMERA_UPLOAD = "camera_upload";
+
+    /** 下载完成/失败时发通知（默认关；打开时才申请 POST_NOTIFICATIONS） */
+    static boolean downloadNotify(Context c) {
+        return get(c).getBoolean(KEY_DL_NOTIFY, false);
+    }
+
+    static void setDownloadNotify(Context c, boolean on) {
+        get(c).edit().putBoolean(KEY_DL_NOTIFY, on).apply();
+    }
+
+    /** 网页拍照上传（默认关；打开时才申请 CAMERA） */
+    static boolean cameraUpload(Context c) {
+        return get(c).getBoolean(KEY_CAMERA_UPLOAD, false);
+    }
+
+    static void setCameraUpload(Context c, boolean on) {
+        get(c).edit().putBoolean(KEY_CAMERA_UPLOAD, on).apply();
     }
 
     // ---------- 服务器地址 ----------

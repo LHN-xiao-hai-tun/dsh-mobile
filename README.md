@@ -186,10 +186,12 @@ dsh web --port 3080 --no-open
 
 - **不采集、不上传任何数据**
 - 只在本机 `SharedPreferences` 保存：你填的服务器地址、最近 5 条连接历史、快捷指令模板、浮动按钮位置
-- **App 自身唯一的网络行为**就是访问你填的那个地址；「检查更新」也只是交给系统浏览器打开 GitHub 页面
+- **App 自身唯一的网络行为**就是访问你填的那个地址；「检查更新」只在你点它时才查一次 GitHub（不会自动查、不会自动下载）
 - 无广告、无统计、无第三方 SDK
-- 只声明 **3 个权限**：`INTERNET` · `ACCESS_NETWORK_STATE` · `CHANGE_WIFI_MULTICAST_STATE`（mDNS 组播锁用）
-  （打包后清单里另有 1 条 androidx 自动生成的应用自有权限，不涉及用户数据 —— 见 [PRIVACY.md](PRIVACY.md)）
+- 清单里 **5 条权限**：基础 3 条 —— `INTERNET` · `ACCESS_NETWORK_STATE` · `CHANGE_WIFI_MULTICAST_STATE`（mDNS 组播锁用）；
+  另有 2 条**属于「要用才开」的可选功能**（v1.3.9 起）—— `POST_NOTIFICATIONS`（下载完成时通知）· `CAMERA`（网页拍照上传）：
+  两者**默认关闭**，只有你在设置里打开对应开关时才会申请、系统也才可能弹窗；关着时功能不启用、也不会打扰你
+  （打包后清单里另有一条 androidx 自动生成的应用自有权限，不涉及用户数据 —— 见 [PRIVACY.md](PRIVACY.md)）
 
 > 完整口径（含**加密存放**与「仍然要注意的」那几条）见 [**PRIVACY.md**](PRIVACY.md)。
 

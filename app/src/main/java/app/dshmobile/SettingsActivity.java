@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -216,6 +217,35 @@ public class SettingsActivity extends Activity {
         });
         root.addView(reset);
 
+        // ---- v1.3.9 · D1/D2：权限类功能开关（**默认关**；打开时才申请那一条权限）----
+        TextView permLabel = new TextView(this);
+        permLabel.setTextSize(13);
+        permLabel.setAlpha(0.6f);
+        permLabel.setPadding(0, (int) (28 * d), 0, (int) (4 * d));
+        permLabel.setText(R.string.perm_section);
+        root.addView(permLabel);
+
+        TextView permNote = new TextView(this);
+        permNote.setTextSize(11f);
+        permNote.setAlpha(0.6f);
+        permNote.setText(R.string.perm_note);
+        root.addView(permNote);
+
+        // ⚠️ 2026-09-23 实测抓到的坑：第一版回调里**只申请权限、没写 Prefs** ⇒
+        //    勾选框看着是打开的、实际没保存，下载完成照样不发通知（"看着好了"的典型）。
+        //    ⇒ 一个回调里必须做两件事：**先落盘**，再按需申请权限。
+        addPermSwitch(root, d, R.string.perm_notify, R.string.perm_notify_desc,
+                Prefs.downloadNotify(this), on -> {
+                    Prefs.setDownloadNotify(this, on);
+                    requestIfNeeded(on, android.Manifest.permission.POST_NOTIFICATIONS);
+                });
+
+        addPermSwitch(root, d, R.string.perm_camera, R.string.perm_camera_desc,
+                Prefs.cameraUpload(this), on -> {
+                    Prefs.setCameraUpload(this, on);
+                    requestIfNeeded(on, android.Manifest.permission.CAMERA);
+                });
+
         // ---- v1.3.9 · C2：配置导出 / 导入（换机时把地址与证书信任一并带走）----
         TextView cfgLabel = new TextView(this);
         cfgLabel.setTextSize(13);
@@ -297,6 +327,77 @@ public class SettingsActivity extends Activity {
         root.addView(about);
 
         setContentView(scroll);
+    }
+
+    /* ---------- v1.3.9 · D1/D2：权限类功能的开关（默认关，开时才申请） ---------- */
+
+    /** 权限请求码 */
+    private static final int REQ_PERM_NOTIFY = 0x5B01;
+    private static final int REQ_PERM_CAMERA = 0x5B02;
+
+    /** 一个「功能开关」行（标题 + 说明 + CheckBox） */
+    private void addPermSwitch(LinearLayout root, float d, int titleRes, int descRes,
+                               boolean initial, java.util.function.Consumer<Boolean> onToggle) {
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText(titleRes);
+        cb.setTextSize(15);
+        cb.setChecked(initial);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = (int) (8 * d);
+        cb.setLayoutParams(lp);
+
+        TextView desc = new TextView(this);
+        desc.setTextSize(11f);
+        desc.setAlpha(0.6f);
+        desc.setPadding((int) (8 * d), 0, 0, (int) (4 * d));
+        desc.setText(descRes);
+        desc.setVisibility(initial ? View.GONE : View.VISIBLE);
+
+        cb.setOnCheckedChangeListener((v, checked) -> {
+            desc.setVisibility(checked ? View.GONE : View.VISIBLE);
+            onToggle.accept(checked);
+        });
+        root.addView(cb);
+        root.addView(desc);
+    }
+
+    /**
+     * 打开开关时按需申请那一条权限；关掉开关时**什么都不申请**（这正是"选择留给用户"的本意）。
+     *
+     * ⚠️ 只有真的需要时才弹系统窗：Android 13 以下没有 POST_NOTIFICATIONS 这个运行时权限，
+     *    直接当"已授权"处理（通知在 8~12 上只要开关打开就能发）。
+     */
+    private void requestIfNeeded(boolean on, String permission) {
+        if (!on) {
+            return;                                  // 关掉开关：不申请、不打扰
+        }
+        boolean isNotify = android.Manifest.permission.POST_NOTIFICATIONS.equals(permission);
+        if (isNotify && android.os.Build.VERSION.SDK_INT < 33) {
+            return;                                  // Android 13 以下没有这条运行时权限，通知不用申请
+        }
+        if (checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        requestPermissions(new String[]{permission}, isNotify ? REQ_PERM_NOTIFY : REQ_PERM_CAMERA);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code != REQ_PERM_NOTIFY && code != REQ_PERM_CAMERA) return;
+        boolean granted = results.length > 0
+                && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (!granted) {
+            // 用户拒绝 ⇒ **把开关退回关**（否则会出现"开关是开的、功能却不工作"的假状态）
+            if (code == REQ_PERM_NOTIFY) {
+                Prefs.setDownloadNotify(this, false);
+            } else {
+                Prefs.setCameraUpload(this, false);
+            }
+            Toast.makeText(this, R.string.perm_denied, Toast.LENGTH_LONG).show();
+            recreate();
+        }
     }
 
     /* ---------- v1.3.9 · C2：配置导出 / 导入 ---------- */

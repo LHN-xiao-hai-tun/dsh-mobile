@@ -7,6 +7,13 @@
          不申请定位/近场权限（那类权限用于 SSID 读取，本 App 不需要）。 -->
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
+    <!-- v1.3.9 · D1/D2：权限类功能（**默认关**，用户打开开关时才申请那一条）——
+         口径见 PRIVACY.md §四。声明 ≠ 申请：不打开开关，系统连弹窗都不会有。
+         ① POST_NOTIFICATIONS：下载完成/失败时在应用外提示（Android 13+ 才需运行时授权）
+         ② CAMERA：网页拍照上传（网页里带 capture 的文件输入框，开关打开且授权后才接管） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.CAMERA" />
+
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"

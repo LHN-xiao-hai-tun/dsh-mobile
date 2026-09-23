@@ -289,4 +289,20 @@
     <string name="cfg_import_skipped">⚠️ 文件里有 %1$d 行看不懂，已跳过；其余照常导入。</string>
     <string name="cfg_import_go">确认导入</string>
     <string name="cfg_no_picker">这台设备上没有可用的文件选择器</string>
+
+    <!-- ═══ v1.3.9 · D1/D2 权限类功能开关（默认关 · 开时才申请） ═══ -->
+    <string name="perm_section">可选功能（要用才开）</string>
+    <string name="perm_note">下面两项默认关闭：关着的时候 App 不会申请那一条权限、系统也不会弹窗。打开开关时才会申请对应权限（你不给，功能就不启用）。</string>
+    <string name="perm_notify">下载完成时通知我</string>
+    <string name="perm_notify_desc">关闭时：下载进度只在 App 内显示。下载本身不受影响。打开时：需要「通知」权限（Android 13+）。</string>
+    <string name="perm_camera">网页拍照上传</string>
+    <string name="perm_camera_desc">关闭时：网页里的文件输入框走系统文件选择器（老行为）。打开时：网页要求拍照的输入框会直接调相机，需要「相机」权限。</string>
+    <string name="perm_denied">没有授权，对应的功能保持关闭（你也可以稍后在系统设置里给它权限）</string>
+    <string name="notif_channel_name">下载</string>
+    <string name="notif_channel_desc">网页下载完成或失败时提示（你可以在设置里关掉）</string>
+    <string name="notif_dl_done_title">下载完成</string>
+    <string name="notif_dl_done_text">已保存（%1$s）</string>
+    <string name="notif_dl_fail_title">下载未完成</string>
+    <string name="camera_no_app">这台设备上没有可用的相机应用，已改回文件选择器</string>
+    <string name="camera_failed">拍照没成功，已改回文件选择器</string>
 </resources>

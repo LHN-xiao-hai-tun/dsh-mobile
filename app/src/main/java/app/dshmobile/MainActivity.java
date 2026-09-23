@@ -339,6 +339,19 @@ public class MainActivity extends Activity {
                     fileCallback.onReceiveValue(null);
                 }
                 fileCallback = cb;
+                // ---------- v1.3.9 · D2：网页拍照上传（**开关默认关**）----------
+                // 只有三件事同时成立才接管：① 用户在设置里打开了开关；② 相机权限已授权；
+                // ③ 这个输入框确实是要拍照的（页面带了 capture）。
+                // 任何一条不成立 ⇒ 原样走下面的系统文件选择器（老行为），绝不硬拉相机。
+                if (Prefs.cameraUpload(MainActivity.this)
+                        && checkSelfPermission(android.Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED
+                        && params.isCaptureEnabled()) {
+                    if (startCameraCapture(cb)) {
+                        return true;
+                    }
+                    // 没有相机应用 / 拉不起来 ⇒ 已经提示过了，这里继续走文件选择器兜底
+                }
                 try {
                     // 用官方 createIntent：页面声明的 accept / multiple 会被带上，过滤规则由页面决定
                     Intent i = params.createIntent();
@@ -1031,6 +1044,63 @@ public class MainActivity extends Activity {
 
     /** 文件选择器的请求码 */
     private static final int REQ_FILE_CHOOSER = 0x51;
+    /** 拍照（D2）的请求码 */
+    private static final int REQ_CAMERA_CAPTURE = 0x53;
+    /** 本次拍照要写到哪里（回来时用它把照片交回页面） */
+    private Uri pendingPhotoUri;
+
+    /**
+     * 拉起相机拍一张，并把结果交给页面（D2 · v1.3.9）。
+     *
+     * ⚠️ 用 `ACTION_IMAGE_CAPTURE` + `EXTRA_OUTPUT` 指向**本 App 私有目录**里的临时文件，
+     *    通过已有的 FileProvider 授权给相机应用写 —— ⛔ 不需要写外部存储的权限。
+     *
+     * @return false = 没能拉起相机（调用方应回落到文件选择器），此时**不会**碰 callback
+     */
+    private boolean startCameraCapture(ValueCallback<Uri[]> cb) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "photos");
+            if (!dir.exists() && !dir.mkdirs()) {
+                Log.w(TAG, "拍照临时目录建不出来：" + dir);
+                return false;
+            }
+            java.io.File photo = new java.io.File(dir,
+                    "shot-" + System.currentTimeMillis() + ".jpg");
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, getPackageName() + ".files", photo);
+
+            Intent i = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+            i.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, uri);
+            i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            if (i.resolveActivity(getPackageManager()) == null) {
+                Log.w(TAG, "没有相机应用，回落到文件选择器");
+                toast(getString(R.string.camera_no_app));
+                return false;
+            }
+            pendingPhotoUri = uri;
+            startActivityForResult(i, REQ_CAMERA_CAPTURE);
+            return true;
+        } catch (Exception e) {
+            Log.w(TAG, "拉起相机失败：" + e);
+            toast(getString(R.string.camera_failed));
+            pendingPhotoUri = null;
+            return false;
+        }
+    }
+
+    /**
+     * 那个 FileProvider 里指着的临时照片**真的有内容**吗？
+     * ⚠️ 相机应用可能忽略 `EXTRA_OUTPUT` 自己写相册 ⇒ 只看"URI 存在"是不够的，必须看字节数。
+     */
+    private boolean photoFileHasContent(Uri uri) {
+        try (android.os.ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r")) {
+            return pfd != null && pfd.getStatSize() > 0;
+        } catch (Exception e) {
+            Log.w(TAG, "读临时照片失败：" + e);
+            return false;
+        }
+    }
+
     /**
      * 等待回应的文件选择回调。
      * ⚠️ 每个 callback **必须恰好回调一次**（Android 的硬要求）—— 提前/重复/丢失都会让页面的
@@ -1041,6 +1111,38 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQ_CAMERA_CAPTURE) {
+            // 拍照回来：**恰好一次**地把结果交给页面（取消 / 失败都给 null）
+            ValueCallback<Uri[]> cb = fileCallback;
+            fileCallback = null;
+            Uri photo = pendingPhotoUri;
+            pendingPhotoUri = null;
+            if (cb == null) return;
+            if (resultCode == RESULT_OK) {
+                // ⚠️ 实测（2026-09-23 · Android 8 模拟器自带相机）：系统相机**可能忽略 EXTRA_OUTPUT**，
+                //    把照片写进它自己的相册（日志里是 `content://media/external/images/media/56`），
+                //    这时我们那个临时文件是空的 ⇒ 不能盲目把空文件交回页面。
+                //    判据：① 临时文件真的有内容 → 用它；② 否则看相机有没有在 data 里回一个 URI → 用它；
+                //    ③ 都没有 → 回 null（页面会显示"没选到文件"，比给一个打不开的空文件强）。
+                Uri fromData = (data == null) ? null : data.getData();
+                Uri use = null;
+                if (photo != null && photoFileHasContent(photo)) {
+                    use = photo;
+                } else if (fromData != null) {
+                    use = fromData;
+                }
+                if (use == null) {
+                    Log.w(TAG, "拍照返回 OK，但既没写进临时文件、也没在 data 里给 URI ⇒ 交回 null");
+                    cb.onReceiveValue(null);
+                } else {
+                    cb.onReceiveValue(new Uri[]{use});
+                }
+            } else {
+                cb.onReceiveValue(null);
+            }
+            return;
+        }
 
         if (requestCode == REQ_SAVE_DOWNLOAD) {
             // 用户选好了落点 → 开始在后台把文件流式写进去
@@ -1186,7 +1288,13 @@ public class MainActivity extends Activity {
             public void onDone(long bytes) {
                 runOnUiThread(() -> {
                     dismissDownloadDialog();
-                    toast(getString(R.string.dl_done_fmt, Downloader.humanSize(bytes)));
+                    String human = Downloader.humanSize(bytes);
+                    toast(getString(R.string.dl_done_fmt, human));
+                    // v1.3.9 · D1：用户开了开关才发通知（默认关 ⇒ 既不弹权限窗也不发通知）
+                    if (Prefs.downloadNotify(MainActivity.this)) {
+                        Notifications.postDownloadResult(MainActivity.this, true,
+                                getString(R.string.notif_dl_done_text, human));
+                    }
                 });
             }
 
@@ -1194,6 +1302,10 @@ public class MainActivity extends Activity {
             public void onError(String message) {
                 runOnUiThread(() -> {
                     dismissDownloadDialog();
+                    // v1.3.9 · D1：失败也给一条通知（切后台就看不到对话框了）
+                    if (Prefs.downloadNotify(MainActivity.this)) {
+                        Notifications.postDownloadResult(MainActivity.this, false, message);
+                    }
                     // ⚠️ 只说结论，不弹"用某某应用打开" —— 绝不自动打开下载来的文件
                     new AlertDialog.Builder(MainActivity.this)
                             .setTitle(R.string.dl_failed_title)

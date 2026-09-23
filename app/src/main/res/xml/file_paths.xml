@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  FileProvider 路径：只暴露 cacheDir/exports/（即 LogExporter 写日志的目录）。
-  ⚠️ 路径名要与 LogExporter.PROVIDER_PATH 一致；不要开 <root-path> / <external-path>。
-  这样即使 FileProvider 被误用，也只能拿到我们主动生成的那一个 txt，拿不到应用其它数据。
+  FileProvider 路径：只暴露 cacheDir 下的两个子目录。
+  ⚠️ 路径名要与代码里的常量一致（LogExporter.PROVIDER_PATH = exports · D2 拍照 = photos）；
+     不要开 <root-path> / <external-path>。
+  这样即使 FileProvider 被误用，也只能拿到我们主动生成的那份日志、或我们自己拍的那张临时照片，
+  拿不到应用其它数据。
 -->
 <paths>
     <cache-path name="exports" path="exports/" />
+    <!-- v1.3.9 · D2：拍照临时落点（照片由相机应用写入，再交回网页） -->
+    <cache-path name="photos" path="photos/" />
 </paths>
