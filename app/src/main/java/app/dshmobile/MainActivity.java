@@ -1173,10 +1173,11 @@ public class MainActivity extends Activity {
             public void onProgress(long read, long total) {
                 runOnUiThread(() -> {
                     if (downloadDialog == null || !downloadDialog.isShowing()) return;
+                    // ⚠️ 用 humanSize 而不是"一律除以 1024"——实测 95 B 的文件会显示成「0 KB」
                     String msg = (total > 0)
-                            ? getString(R.string.dl_progress_fmt, read / 1024, total / 1024,
-                                        (int) (read * 100 / total))
-                            : getString(R.string.dl_progress_unknown_fmt, read / 1024);
+                            ? getString(R.string.dl_progress_fmt, Downloader.humanSize(read),
+                                        Downloader.humanSize(total), (int) (read * 100 / total))
+                            : getString(R.string.dl_progress_unknown_fmt, Downloader.humanSize(read));
                     downloadDialog.setMessage(msg);
                 });
             }
@@ -1185,7 +1186,7 @@ public class MainActivity extends Activity {
             public void onDone(long bytes) {
                 runOnUiThread(() -> {
                     dismissDownloadDialog();
-                    toast(getString(R.string.dl_done_fmt, bytes / 1024));
+                    toast(getString(R.string.dl_done_fmt, Downloader.humanSize(bytes)));
                 });
             }
 

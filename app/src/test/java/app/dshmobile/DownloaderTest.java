@@ -2,6 +2,7 @@ package app.dshmobile;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
@@ -125,5 +126,75 @@ public class DownloaderTest {
         assertEquals("fe80::1", Downloader.hostOf("http://[fe80::1]:8080/x"));
         assertEquals("", Downloader.hostOf("192.168.10.44:3082"));   // 无 scheme ⇒ 取不到
         assertEquals("", Downloader.hostOf(null));
+    }
+
+    /* ───────── ⑥ v1.3.9 补：证书错误拆链 + 人类可读大小（A2 实测逼出来的两条） ───────── */
+
+    @Test
+    public void certificateCauseIsUnwrappedFromHandshakeException() {
+        // 实测复现的真实形状：TLS 握手把我们的 CertificateException 包进 SSLHandshakeException
+        // ⇒ 不拆链的话，用户看到的是英文类名「下载失败：SSLHandshakeException」
+        javax.net.ssl.SSLHandshakeException wrapped = new javax.net.ssl.SSLHandshakeException("握手失败");
+        wrapped.initCause(new java.security.cert.CertificateException("这台服务器用的是系统不信任的证书"));
+        assertEquals("这台服务器用的是系统不信任的证书",
+                Downloader.certCause(wrapped).getMessage());
+        assertEquals("本身就是证书异常也要认", "x",
+                Downloader.certCause(new java.security.cert.CertificateException("x")).getMessage());
+        // ⚠️ SSLHandshakeException 只有 (String) 构造器 ⇒ cause 只能事后 initCause 挂上
+        javax.net.ssl.SSLHandshakeException middle = new javax.net.ssl.SSLHandshakeException("middle");
+        middle.initCause(new java.security.cert.CertificateException("deep"));
+        assertEquals("包两层也要拆到", "deep",
+                Downloader.certCause(new RuntimeException(middle)).getMessage());
+    }
+
+    @Test
+    public void certificateCauseIsNullForUnrelatedFailures() {
+        assertNull("普通 IO 失败不该被当成证书问题", Downloader.certCause(new java.io.IOException("boom")));
+        assertNull(Downloader.certCause(new RuntimeException("boom")));
+        assertNull(Downloader.certCause(null));
+    }
+
+    @Test
+    public void certificateCauseSurvivesCyclicCause() {
+        RuntimeException a = new RuntimeException("a");
+        RuntimeException b = new RuntimeException("b");
+        a.initCause(b);
+        b.initCause(a);                       // 人为造环（Java 只禁自引用，不禁两节点环）
+        assertNull("环形 cause 不能死循环", Downloader.certCause(a));
+    }
+
+    @Test
+    public void humanSizeNeverSaysZeroForNonZeroBytes() {
+        // 实测缺陷：95 B 的文件提示「已保存（0 KB）」
+        assertEquals("95 B", Downloader.humanSize(95));
+        assertEquals("1 B", Downloader.humanSize(1));
+        assertEquals("1023 B", Downloader.humanSize(1023));
+        assertEquals("1 KB", Downloader.humanSize(1024));
+        assertEquals("1 KB", Downloader.humanSize(1536));
+        assertEquals("200 MB", Downloader.humanSize(200L * 1024 * 1024));
+        assertEquals("1 GB", Downloader.humanSize(1024L * 1024 * 1024));
+        assertEquals("0 B", Downloader.humanSize(0));
+        assertEquals("0 B", Downloader.humanSize(-5));
+    }
+
+    @Test
+    public void userFacingMessageNeverLeaksJavaClassNames() {
+        // 实测看到的两种泄漏：
+        //   ① 证书原因被 TLS 包成 SSLHandshakeException ⇒ 界面上就是「下载失败：SSLHandshakeException」
+        //   ② 主机名不匹配 ⇒ 「下载失败：SSLPeerUnverifiedException」
+        assertEquals("主机名不匹配要说人话", R.string.dl_err_hostname,
+                Downloader.userMessageFor(
+                        new javax.net.ssl.SSLPeerUnverifiedException("Hostname 192.168.10.44 not verified")));
+        assertEquals("TLS 层问题要说人话", R.string.dl_err_tls,
+                Downloader.userMessageFor(new javax.net.ssl.SSLHandshakeException("handshake failed")));
+        assertEquals(R.string.dl_err_unknown_host,
+                Downloader.userMessageFor(new java.net.UnknownHostException("nope")));
+        assertEquals(R.string.dl_err_timeout,
+                Downloader.userMessageFor(new java.net.SocketTimeoutException("slow")));
+        assertEquals("ConnectException 不能被笼统的 IOException 抢走", R.string.dl_err_connect,
+                Downloader.userMessageFor(new java.net.ConnectException("refused")));
+        assertEquals(R.string.dl_err_io, Downloader.userMessageFor(new java.io.IOException("io")));
+        assertEquals(R.string.dl_err_generic, Downloader.userMessageFor(new RuntimeException("?")));
+        assertEquals(R.string.dl_err_generic, Downloader.userMessageFor(null));
     }
 }

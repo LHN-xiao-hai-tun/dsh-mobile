@@ -182,59 +182,187 @@ final class Downloader {
         new Thread(() -> {
             OutputStream out = null;
             HttpURLConnection c = null;
+            boolean ok = false;         // 真写成功了才置 true（决定失败时要不要删掉那个空文件）
+            boolean opened = false;     // 目标文件是否已被建出来（SAF 是**先建文件、后写内容**）
             try {
-                if (!isAllowedScheme(url)) { cb.onError("只支持 http/https 链接"); return; }
+                if (!isAllowedScheme(url)) { cb.onError(ctx.getString(R.string.dl_err_scheme)); return; }
                 String configured = Prefs.url(ctx);
                 String current = url;
                 int redirects = 0;
                 while (true) {
-                    if (cancel.get()) { cb.onError("已取消"); return; }
+                    if (cancel.get()) { cb.onError(ctx.getString(R.string.dl_err_cancelled)); return; }
                     c = open(ctx, current, shouldReplayCookie(configured, current));
                     int code = c.getResponseCode();
                     if (code >= 300 && code < 400) {
                         String loc = c.getHeaderField("Location");
                         c.disconnect();
                         c = null;
-                        if (loc == null || ++redirects > MAX_REDIRECTS) { cb.onError("重定向过多或缺少 Location"); return; }
+                        if (loc == null || ++redirects > MAX_REDIRECTS) {
+                            cb.onError(ctx.getString(R.string.dl_err_redirect));
+                            return;
+                        }
                         current = new URL(new URL(current), loc).toString();
-                        if (!isAllowedScheme(current)) { cb.onError("重定向到了不支持的协议"); return; }
+                        if (!isAllowedScheme(current)) {
+                            cb.onError(ctx.getString(R.string.dl_err_redirect_scheme));
+                            return;
+                        }
                         continue;
                     }
-                    if (code < 200 || code >= 300) { cb.onError("服务器返回 HTTP " + code); return; }
+                    if (code < 200 || code >= 300) {
+                        cb.onError(ctx.getString(R.string.dl_err_http_fmt, code));
+                        return;
+                    }
 
                     long total = c.getContentLengthLong();
-                    if (total > MAX_BYTES) { cb.onError("文件太大（超过 " + (MAX_BYTES / 1024 / 1024) + " MB）"); return; }
+                    if (total > MAX_BYTES) {
+                        cb.onError(ctx.getString(R.string.dl_err_too_big_fmt, MAX_BYTES / 1024 / 1024));
+                        return;
+                    }
 
                     out = ctx.getContentResolver().openOutputStream(target, "w");
-                    if (out == null) { cb.onError("打不开你选的位置"); return; }
+                    if (out == null) { cb.onError(ctx.getString(R.string.dl_err_no_target)); return; }
+                    opened = true;
 
                     InputStream in = c.getInputStream();
                     byte[] buf = new byte[16 * 1024];
                     long read = 0;
                     int n;
                     while ((n = in.read(buf)) > 0) {
-                        if (cancel.get()) { cb.onError("已取消"); return; }
+                        if (cancel.get()) { cb.onError(ctx.getString(R.string.dl_err_cancelled)); return; }
                         read += n;
-                        if (read > MAX_BYTES) { cb.onError("文件超过上限，已中止"); return; }
+                        if (read > MAX_BYTES) { cb.onError(ctx.getString(R.string.dl_err_too_big_abort)); return; }
                         out.write(buf, 0, n);
                         cb.onProgress(read, total);
                     }
                     out.flush();
+                    ok = true;
                     cb.onDone(read);
                     return;
                 }
             } catch (CertificateException ce) {
                 // 证书问题要**说人话**（这是最可能被用户遇到的失败）
-                Log.w(TAG, "下载中止（证书）：" + ce.getMessage());
-                cb.onError(ce.getMessage() == null ? "证书校验未通过，已中止" : ce.getMessage());
+                failCert(ctx, cb, ce);
             } catch (Exception e) {
-                Log.w(TAG, "下载失败：" + e);
-                cb.onError("下载失败：" + e.getClass().getSimpleName());
+                // ⚠️ v1.3.9 修（A2 实测抓到的两处）：
+                //   ① 证书类错误经 TLS 握手会被**包成** `SSLHandshakeException`
+                //      （cause 链里才是我们那条 `CertificateException`）⇒ 不拆链的话，
+                //      用户看到的是英文类名，而精心写的那句"请先打开一次该地址核对指纹"**只进了 logcat**；
+                //   ② 其它网络异常同样**不能把 Java 类名甩给用户**（实测看到「下载失败：SSLPeerUnverifiedException」）
+                //      ⇒ 统一翻成人话（见 {@link #userMessageFor}），细节留在日志里供「导出日志」查。
+                CertificateException ce = certCause(e);
+                if (ce != null) {
+                    failCert(ctx, cb, ce);
+                } else {
+                    Log.w(TAG, "下载失败：" + e);
+                    cb.onError(ctx.getString(userMessageFor(e)));
+                }
             } finally {
                 try { if (out != null) out.close(); } catch (Exception ignored) { }
                 if (c != null) c.disconnect();
+                // ⚠️ v1.3.9 修（A2 实测抓到）：失败时**别把那个空壳文件留在用户眼前**。
+                //    实测（Android 8 模拟器）两条失败路径都在 `/sdcard/Download/` 留下 **0 字节**残file
+                //    —— 用户看到"文件在了"会以为下成功了。
+                //    ⚠️ 关键细节（第一版修错了、重测才发现）：**空文件不是我们建的，是 SAF 建的**
+                //       —— 用户点「SAVE」那一刻 DocumentsUI 就把空文档建出来了，那时 `opened` 还是 false。
+                //       所以判据不能只看 `opened`：没打开过时，**只有 0 字节**（= 本次刚建的空壳）才删，
+                //       否则可能删掉用户原有的同名文件。
+                if (!ok && target != null) {
+                    long size = -1;
+                    boolean ours = opened;      // 打开过（"w" 已清空内容）⇒ 删掉是对的
+                    try {
+                        if (!ours) {
+                            try (android.database.Cursor cur = ctx.getContentResolver()
+                                    .query(target, null, null, null, null)) {
+                                if (cur != null && cur.moveToFirst()) {
+                                    int idx = cur.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                                    if (idx >= 0 && !cur.isNull(idx)) size = cur.getLong(idx);
+                                }
+                            } catch (Exception ignored) { }
+                            ours = (size == 0);
+                        }
+                        int n = 0;
+                        if (ours) {
+                            // ⚠️ 实测（Android 8）：SAF 返回的文档 URI 上 `ContentResolver.delete`
+                            //    会抛 `UnsupportedOperationException: Delete not supported`
+                            //    —— 文档 URI 必须走 `DocumentsContract.deleteDocument`。
+                            if (android.provider.DocumentsContract.isDocumentUri(ctx, target)) {
+                                n = android.provider.DocumentsContract
+                                        .deleteDocument(ctx.getContentResolver(), target) ? 1 : 0;
+                            } else {
+                                n = ctx.getContentResolver().delete(target, null, null);
+                            }
+                        }
+                        Log.w(TAG, "下载失败后清理空壳文件：opened=" + opened + " size=" + size
+                                + " 删除条数=" + n);
+                    } catch (Exception e) {
+                        Log.w(TAG, "清理空壳文件失败：" + e);
+                    }
+                }
             }
         }, "dsh-download").start();
+    }
+
+    /** 证书类失败统一出口：**把消息原样交给用户**（别再吐 SSLHandshakeException 这种类名） */
+    private static void failCert(Context ctx, Progress cb, CertificateException ce) {
+        String m = ce.getMessage();
+        if (m == null || m.trim().isEmpty()) m = ctx.getString(R.string.dl_err_cert_generic);
+        Log.w(TAG, "下载中止（证书）：" + m);
+        cb.onError(m);
+    }
+
+    /**
+     * 把常见的网络/协议异常翻成**用户能看懂的一句话**。
+     *
+     * ⚠️ 为什么不能直接把异常甩给用户：实测（2026-09-23 · Android 8 模拟器）用户看到的是
+     * 「下载失败：SSLPeerUnverifiedException」这种**英文类名** —— 对用户零信息量，
+     * 而真正的原因（主机名不匹配）在 logcat 里。⇒ 界面上说人话，细节留给「设置 → 导出日志」。
+     *
+     * 判据顺序有讲究：`SSLPeerUnverifiedException` 不是 `SSLHandshakeException` 的子类，
+     * 而 `UnknownHostException` / `ConnectException` / `SocketTimeoutException` 全都是 `IOException` 的子类
+     * ⇒ **先判具体、后判笼统**（见 {@code DownloaderTest}）。
+     */
+    static int userMessageFor(Throwable e) {
+        if (e == null) return R.string.dl_err_generic;
+        if (e instanceof java.net.UnknownHostException) return R.string.dl_err_unknown_host;
+        if (e instanceof java.net.SocketTimeoutException) return R.string.dl_err_timeout;
+        if (e instanceof javax.net.ssl.SSLPeerUnverifiedException) return R.string.dl_err_hostname;
+        if (e instanceof javax.net.ssl.SSLHandshakeException) return R.string.dl_err_tls;
+        if (e instanceof java.net.ConnectException) return R.string.dl_err_connect;
+        if (e instanceof java.io.IOException) return R.string.dl_err_io;
+        return R.string.dl_err_generic;
+    }
+
+    /**
+     * 在 cause 链里找出我们那条 {@link CertificateException}。
+     *
+     * 为什么需要它：`HttpsURLConnection` 握手失败时抛的是 `SSLHandshakeException`（IOException 子类），
+     * 我们把真正的原因放在它的 cause 里 ⇒ `catch (CertificateException)` **接不到**。
+     * 实测证据（2026-09-23 · Android 8 模拟器 · B2 三条证书路径）：
+     * `下载失败：javax.net.ssl.SSLHandshakeException: <我们写的那句证书说明>`。
+     */
+    static CertificateException certCause(Throwable t) {
+        Throwable cur = t;
+        int guard = 0;                                  // 防自引用/环形 cause 死循环
+        while (cur != null && guard++ < 20) {
+            if (cur instanceof CertificateException) return (CertificateException) cur;
+            if (cur.getCause() == cur) break;
+            cur = cur.getCause();
+        }
+        return null;
+    }
+
+    /**
+     * 人类可读的大小。缺了它，**95 B 会显示成「0 KB」**（实测，见 `dl_done_fmt` 的用法）。
+     * 只做整数换算：下载提示不需要小数点后几位。
+     */
+    static String humanSize(long bytes) {
+        if (bytes <= 0) return "0 B";
+        if (bytes < 1024) return bytes + " B";
+        long kb = bytes / 1024;
+        if (kb < 1024) return kb + " KB";
+        long mb = kb / 1024;
+        if (mb < 1024) return mb + " MB";
+        return (mb / 1024) + " GB";
     }
 
     private static HttpURLConnection open(Context ctx, String url, boolean withCookie) throws Exception {
@@ -299,10 +427,11 @@ final class Downloader {
                 String trusted = Prefs.trustedFingerprint(ctx, host);
                 if (fingerprintMatches(trusted, actual)) return;
                 if (trusted == null || trusted.isEmpty()) {
-                    throw new CertificateException("这台服务器用的是系统不信任的证书，且你还确认过它的指纹。"
-                            + "请先用本 App 打开一次该地址并核对指纹，再下载。");
+                    // ⚠️ v1.3.9 修：原文案漏了一个「没」字 ⇒ 意思**正好相反**
+                    //    （A2 实测日志原文：「…且你还确认过它的指纹」）
+                    throw new CertificateException(ctx.getString(R.string.dl_err_cert_unknown_host));
                 }
-                throw new CertificateException("证书指纹与已记录的不一致（可能是服务端换证，也可能是中间人），已中止下载。");
+                throw new CertificateException(ctx.getString(R.string.dl_err_cert_changed));
             }
 
             @Override

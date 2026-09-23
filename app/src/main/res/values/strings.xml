@@ -150,10 +150,31 @@
     <string name="dl_busy">已经有一个下载在进行中</string>
     <string name="dl_downloading">正在下载</string>
     <string name="dl_starting">正在连接…</string>
-    <string name="dl_progress_fmt">已下载 %1$d KB / %2$d KB（%3$d%%）</string>
-    <string name="dl_progress_unknown_fmt">已下载 %1$d KB</string>
-    <string name="dl_done_fmt">已保存（%1$d KB）</string>
+    <!-- 大小由 Downloader.humanSize 给出（%1$s）—— 早先写死「/1024 ⇒ KB」，导致 95 B 显示成「0 KB」 -->
+    <string name="dl_progress_fmt">已下载 %1$s / %2$s（%3$d%%）</string>
+    <string name="dl_progress_unknown_fmt">已下载 %1$s</string>
+    <string name="dl_done_fmt">已保存（%1$s）</string>
     <string name="dl_failed_title">下载未完成</string>
+
+    <!-- 下载侧的用户可见提示（v1.3.9 集中到这里：⛔ 代码里不再有中文字面量 · 本区纪律①） -->
+    <string name="dl_err_scheme">只支持 http/https 链接</string>
+    <string name="dl_err_cancelled">已取消</string>
+    <string name="dl_err_redirect">重定向过多或缺少 Location</string>
+    <string name="dl_err_redirect_scheme">重定向到了不支持的协议</string>
+    <string name="dl_err_http_fmt">服务器返回 HTTP %1$d</string>
+    <string name="dl_err_too_big_fmt">文件太大（超过 %1$d MB）</string>
+    <string name="dl_err_too_big_abort">文件超过上限，已中止</string>
+    <string name="dl_err_no_target">打不开你选的位置</string>
+    <string name="dl_err_cert_unknown_host">这台服务器用的是系统不信任的证书，而你还没确认过它的指纹。请先用本 App 打开一次该地址并核对指纹，再下载。</string>
+    <string name="dl_err_cert_changed">证书指纹与已记录的不一致（可能是服务端换证，也可能是中间人），已中止下载。</string>
+    <string name="dl_err_cert_generic">证书校验未通过，已中止</string>
+    <string name="dl_err_unknown_host">找不到这个地址 —— 请检查地址拼写，以及手机是否和服务在同一个网络</string>
+    <string name="dl_err_timeout">连接超时 —— 服务器没有回应（可能没在运行，或不在同一网络）</string>
+    <string name="dl_err_hostname">服务器证书与这个地址不匹配 —— 可能是地址填错了，也可能是有人在中间</string>
+    <string name="dl_err_tls">TLS 握手失败 —— 服务器证书或加密方式不被接受</string>
+    <string name="dl_err_connect">连不上服务器 —— 检查服务是否在运行、地址与端口对不对</string>
+    <string name="dl_err_io">网络中断，下载没有完成</string>
+    <string name="dl_err_generic">下载失败 —— 具体原因可到「设置 → 导出日志」查看</string>
 
     <!-- ═══ v1.3.9 · 渲染进程被杀兜底（MainActivity.onRenderProcessGone） ═══ -->
     <string name="render_gone_recovering">页面出问题了，正在重载…</string>
