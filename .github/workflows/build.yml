@@ -41,23 +41,23 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v4
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
 
       # 用 setup-gradle 提供 Gradle，避免依赖 gradle-wrapper.properties 里的国内镜像
       # （本地开发者仍可用 ./gradlew，走镜像更快）
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           gradle-version: '8.9'
 
@@ -65,7 +65,7 @@ jobs:
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: dsh-mobile-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -77,15 +77,15 @@ jobs:
     name: lintRelease
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           gradle-version: '8.9'
 
@@ -96,7 +96,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: lint-report
           path: app/build/reports/lint-results-*.html
@@ -108,15 +108,15 @@ jobs:
     name: unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           gradle-version: '8.9'
 
@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload test report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-test-report
           path: app/build/reports/tests/**
@@ -146,15 +146,15 @@ jobs:
     name: 可复现闸（连续两次 clean 构建比哈希）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           gradle-version: '8.9'
 
@@ -193,7 +193,7 @@ jobs:
           cat SHA256SUMS.txt
 
       - name: Upload 校验和 + 未签名 release APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-unsigned-apk-sha256
           path: |
@@ -202,53 +202,150 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # ── ⑥ 发布（v1.3.10 新增 · tag `v*` 触发）──────────────────────────
+  # ── ⑥ 发布（tag `v*` 触发）──────────────────────────────────────────
   #
-  # 🔴 签名口径（**B 路 · 保守**，用户 2026-09-23 拍板）：
-  #   CI 里**没有 keystore**（密钥永不出本机）⇒ 本作业产出的是**未签名** APK。
-  #   为了**不让 Obtainium 误抓未签名包**，它命名带 `-unsigned` 后缀；
-  #   正式签名包由本地 `scripts\release.ps1 -Publish` 签名后以**规范名** `dsh-mobile-vX.Y.Z.apk`
-  #   上传并**删掉这里的占位**（最终 Release 只留干净的一对资产）。
-  #   ⇒ 本作业的价值：**打 tag 即自动出包 + 校验和 + Release**，不依赖本机是否开着。
+  # 🔑 签名口径（**A 路 · 2026-09-23 用户拍板启用；B 路仍在**）：
+  #   密钥在 **Environment `release` 的环境级 Secrets** 里（`KEYSTORE_B64` / `KEYSTORE_PASSWORD` /
+  #   `KEY_ALIAS` / `KEY_PASSWORD`）⇒ 本作业**云端签名**，产出**规范名**资产：
+  #     `dsh-mobile-vX.Y.Z.apk` + `.apk.sha256`
+  #   ⚠️ **三条加固**（缺一不可，都是这次一起上的）：
+  #     ① `environment: release` ⇒ 该环境配了 **Required reviewers（= 仓库 owner）且 can_admins_bypass=false**
+  #        ⇒ **没人工点批准，本作业不会执行**（密钥也读不到）。这是"workflow/tag 被改也签不出来"的那道闸。
+  #     ② 本文件所有 `uses:` 都**钉到 commit SHA**（仓库设置 `sha_pinning_required=true` 强制）⇒ 防"移动的 tag"。
+  #     ③ tag/分支保护规则见仓库 Rulesets（只允许 owner 动 `v*`）。
+  #   🔻 **降级路径（B 路）**：若 Secrets 不存在（例如回滚时删掉），本作业自动回到旧行为 ——
+  #      出**未签名** `-unsigned` 占位，由本地 `scripts\release.ps1` 签名后替换并删占位。
   #
   # ⚠️ 两条硬约束：
   #   ① `permissions` 全局是 `contents: read` ⇒ **只在本作业**提到 `contents: write`（建 Release 要），别全局提权；
   #   ② 必须 `needs: [lint, test]` ⇒ **红灯不发版**（在红的基础上自动化 = 自动发坏包）。
   release:
-    name: release（tag 触发）
+    name: release（tag 触发 · 有密钥则云端签名）
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [lint, test]
     runs-on: ubuntu-latest
+    environment: release            # 🔴 加固①：签名密钥挂在本环境 ⇒ 未批准不执行
     permissions:
-      contents: write            # ⚠️ 仅本作业；建 Release / 上传资产需要
+      contents: write               # ⚠️ 仅本作业；建 Release / 上传资产需要
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-java@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v4
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platforms;android-34 build-tools;34.0.0'
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6
         with:
           gradle-version: '8.9'
 
-      - name: 构建 release APK（CI 内无 keystore ⇒ 未签名）
+      # ── A 路：从 Secrets 还原密钥；没有就标记走 B 路 ──
+      - name: 还原签名密钥（有 Secrets ⇒ A 路）
+        id: ks
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KS_B64:-}" ]; then
+            echo "signed=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::未配置签名密钥 ⇒ 本次走 B 路（未签名占位 + 本地签名替换）"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/ks"
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/ks/release.jks"
+          # build.gradle 是"有 keystore.properties 就签名"⇒ 一行构建脚本都不用改
+          {
+            echo "storeFile=$RUNNER_TEMP/ks/release.jks"
+            echo "storePassword=$KS_PASS"
+            echo "keyAlias=$KS_ALIAS"
+            echo "keyPassword=$KEY_PASS"
+          } > keystore.properties
+          echo "signed=yes" >> "$GITHUB_OUTPUT"
+          echo "::notice::已还原签名密钥（内容不打印）"
+
+      - name: 构建 release APK
         run: gradle assembleRelease --no-daemon --stacktrace
+
+      # ── 🔴 签名指纹自检：不匹配宁可不发（换钥匙 = 老用户无法覆盖安装）──
+      - name: 🔴 签名指纹自检（A 路）
+        if: steps.ks.outputs.signed == 'yes'
+        env:
+          EXPECTED: ${{ vars.EXPECTED_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          FP=$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*SHA-256 digest: //p' | tr 'A-Z' 'a-z' | tr -d ':')
+          echo "签名指纹 = $FP"
+          echo "期望指纹 = $EXPECTED"
+          if [ -z "$FP" ]; then echo "::error::APK 没有签名！"; exit 1; fi
+          if [ "$FP" != "$EXPECTED" ]; then
+            echo "::error::签名指纹与 EXPECTED_CERT_SHA256 不符 —— 拒绝发布（换钥匙会让老用户无法覆盖安装）"
+            exit 1
+          fi
+          echo "::notice::签名指纹 == 期望 ✅"
 
       - name: 产物命名 + 生成 .sha256
         id: pack
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME}"                       # 例如 v1.3.10
+          TAG="${GITHUB_REF_NAME}"                        # 例如 v1.3.11
           APK_SRC=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
-          OUT="dsh-mobile-${TAG}-unsigned.apk"           # ⚠️ 带 -unsigned ⇒ Obtainium 不会误抓
+          if [ "${{ steps.ks.outputs.signed }}" = "yes" ]; then
+            OUT="dsh-mobile-${TAG}.apk"                   # ✅ 规范名（Obtainium 认它）
+          else
+            OUT="dsh-mobile-${TAG}-unsigned.apk"          # ⚠️ 占位：带 -unsigned，Obtainium 不误抓
+          fi
           cp "$APK_SRC" "$OUT"
           sha256sum "$OUT" | awk '{print $1}' > "${OUT}.sha256"
-          # .sha256 里只放哈希本体（Obtainium / 用户核对都用得上）
           echo "== 产物 =="; ls -l "$OUT" "${OUT}.sha256"; cat "${OUT}.sha256"
-          echo "apk=$OUT" >> "$GITHUB_OUTPUT"
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: 生成 Release Notes（A 路：CHANGELOG 本节 + 校验表）
+        id: notes
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"; VER="${TAG#v}"
+          APK="${{ steps.pack.outputs.out }}"
+          HASH=$(cat "${APK}.sha256"); SIZE=$(stat -c%s "$APK")
+          {
+            if [ "${{ steps.ks.outputs.signed }}" = "yes" ]; then
+              # 从 CHANGELOG.md 抽 `## [VER]` 到下一个 `## [` 之间（抽不到就失败，绝不发空 notes）
+              awk -v ver="$VER" '
+                $0 ~ "^## \\[" ver "\\]" {f=1; print; next}
+                f && /^## \[/ {exit}
+                f {print}
+              ' CHANGELOG.md
+              if ! awk -v ver="$VER" '$0 ~ "^## \\[" ver "\\]" {f=1} END{exit !f}' CHANGELOG.md; then
+                echo "::error::CHANGELOG.md 里找不到 [${VER}] 段 —— 拒绝发布"
+                exit 1
+              fi
+              echo
+            else
+              echo "## DSH Mobile ${TAG}（CI 占位 · 未签名）"
+              echo
+              echo "> 本资产是**未签名**占位（CI 无密钥时走 B 路）。正式签名包由本地 \`release.ps1\` 上传并删除本占位。"
+              echo
+            fi
+            echo '---'
+            echo
+            echo '## 校验（发布件可对应 tag）'
+            echo
+            echo '| 项 | 值 |'
+            echo '|---|---|'
+            echo "| 版本 | \`${VER}\` |"
+            echo '| 最低 Android | **8.0（API 26）** |'
+            echo "| tag | \`${TAG}\` → \`${GITHUB_SHA}\` |"
+            echo "| 资产 | \`${APK}\` |"
+            echo "| 体积 | ${SIZE} B |"
+            echo "| SHA-256 | \`${HASH}\` |"
+            echo "| 签名 | $([ "${{ steps.ks.outputs.signed }}" = "yes" ] && echo "✅ 已签名（CI 云端签名）" || echo "⚠️ 未签名（占位）") |"
+          } > /tmp/notes.md
+          echo "== notes 预览（前 20 行）=="; head -n 20 /tmp/notes.md
 
       - name: 建 Release 并上传资产
         env:
@@ -256,24 +353,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          VER="${TAG#v}"
-          APK="dsh-mobile-${TAG}-unsigned.apk"
-          HASH=$(cat "${APK}.sha256")
-          SIZE=$(stat -c%s "$APK")
-          cat > /tmp/notes.md <<EOF
-          ## DSH Mobile ${TAG}（CI 自动出包 · 未签名占位）
-
-          | 项 | 值 |
-          |---|---|
-          | 版本 | \`${VER}\` |
-          | 最低 Android | **8.0（API 26）** |
-          | 体积 | ${SIZE} B |
-          | SHA-256 | \`${HASH}\` |
-          | 签名 | ⚠️ **未签名**（CI 无 keystore）—— 仅供校验与占位 |
-
-          > 正式**已签名**的安装包（\`dsh-mobile-${TAG}.apk\`）由维护者用本地密钥签名后上传，
-          > 并会删除本占位文件。**装到手机上请用已签名那一个**。
-          EOF
+          APK="${{ steps.pack.outputs.out }}"
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$TAG" \
@@ -289,6 +369,12 @@ jobs:
           gh release view "${GITHUB_REF_NAME}" --repo "$GITHUB_REPOSITORY" --json assets \
             --jq '.assets[] | "\(.name)  \(.size) B"'
 
+      - name: 清掉临时密钥（卫生 · 无论成败都跑）
+        if: always()
+        run: |
+          rm -f keystore.properties "$RUNNER_TEMP/ks/release.jks" || true
+          echo "临时密钥已清除"
+
   # 独立作业：确认 gradlew 本身可用（shebang 为 LF、jar 在库）
   # —— 曾经的缺陷：仓库只有 gradlew.bat，README 里的 ./gradlew 与 CI 都跑不起来。
   wrapper:
@@ -296,10 +382,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
           java-version: '17'
