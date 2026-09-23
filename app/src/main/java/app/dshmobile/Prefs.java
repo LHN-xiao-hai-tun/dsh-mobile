@@ -37,6 +37,8 @@ final class Prefs {
     private static final String KEY_FAB_Y = "fab_y";
     private static final String KEY_TRUST = "trust";
     private static final String KEY_ACK = "ack";
+    /** v1.3.9 · B2：地址命名表（每行 `地址\t名字`） */
+    private static final String KEY_LABELS = "labels";
     private static final String SEP = "\n";
 
     /** 连接历史最多保留条数 */
@@ -123,6 +125,98 @@ final class Prefs {
             list.remove(list.size() - 1);
         }
         writeSecret(c, KEY_HISTORY, join(list));
+    }
+
+    /** 删掉一条历史（连它的名字一起删）——「多地址管理」用 */
+    static void removeHistory(Context c, String url) {
+        String u = normalize(url);
+        if (u.isEmpty()) {
+            return;
+        }
+        List<String> list = history(c);
+        list.remove(u);
+        writeSecret(c, KEY_HISTORY, join(list));
+        setLabel(c, u, "");                 // 地址没了，名字也没意义
+    }
+
+    // ---------- 地址命名（v1.3.9 · B2 多地址管理） ----------
+
+    /**
+     * 给地址起个人话名字（如「家里电脑」「公司」）。
+     *
+     * 存法：每行 `地址\t名字`（**TAB 分隔** —— 名字里可以有空格，但不会有 TAB）。
+     * 键是**规范化后的地址**，与历史记录同一口径，这样两边能对上。
+     */
+    static Map<String, String> labels(Context c) {
+        return parseLabels(readSecret(c, KEY_LABELS, ""));
+    }
+
+    /** 该地址的名字；没起过返回 "" */
+    static String labelFor(Context c, String url) {
+        String u = normalize(url);
+        String v = labels(c).get(u);
+        return v == null ? "" : v;
+    }
+
+    /** 起名 / 改名（传空 = 删掉名字）；顺带把地址写进历史，免得名字指向一条不存在的地址 */
+    static void setLabel(Context c, String url, String label) {
+        String u = normalize(url);
+        if (u.isEmpty()) {
+            return;
+        }
+        Map<String, String> m = labels(c);
+        String v = label == null ? "" : label.replace("\t", " ").replace("\n", " ").trim();
+        if (v.isEmpty()) {
+            m.remove(u);
+        } else {
+            m.put(u, v);
+        }
+        writeSecret(c, KEY_LABELS, joinLabels(m));
+    }
+
+    /** 解析 `地址\t名字` 行（纯函数，进单测）：空行/没有 TAB 的行/空名字一律跳过 */
+    static Map<String, String> parseLabels(String raw) {
+        Map<String, String> out = new LinkedHashMap<>();
+        if (raw == null || raw.isEmpty()) {
+            return out;
+        }
+        for (String line : raw.split(SEP)) {
+            String s = line.trim();
+            if (s.isEmpty()) {
+                continue;
+            }
+            int tab = s.indexOf('\t');
+            if (tab <= 0 || tab == s.length() - 1) {
+                continue;
+            }
+            String url = s.substring(0, tab).trim();
+            String name = s.substring(tab + 1).trim();
+            if (!url.isEmpty() && !name.isEmpty()) {
+                out.put(url, name);
+            }
+        }
+        return out;
+    }
+
+    /** 序列化（与 {@link #parseLabels} 互逆；顺序按传入的 Map 迭代序） */
+    static String joinLabels(Map<String, String> m) {
+        StringBuilder sb = new StringBuilder();
+        if (m == null) {
+            return "";
+        }
+        for (Map.Entry<String, String> e : m.entrySet()) {
+            if (e.getKey() == null || e.getKey().trim().isEmpty()) {
+                continue;
+            }
+            if (e.getValue() == null || e.getValue().trim().isEmpty()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(SEP);
+            }
+            sb.append(e.getKey().trim()).append('\t').append(e.getValue().trim());
+        }
+        return sb.toString();
     }
 
     // ---------- 快捷指令模板 ----------

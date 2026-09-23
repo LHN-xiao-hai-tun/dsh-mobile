@@ -241,4 +241,22 @@
     <string name="diag_hist_ok">%1$s —— 现在能连上</string>
     <string name="diag_hist_bad">%1$s —— 连不上</string>
     <string name="diag_adv_hist">上面能连上的那条，很可能就是电脑换了 IP 之后的新地址 —— 回设置页点它即可填入</string>
+
+    <!-- ═══ v1.3.9 · B2 多地址管理（一键切换 / 在线状态灯 / 命名 / 长按删除） ═══ -->
+    <string name="set_hist_hint">点一行 = 填进上面的输入框（可改完再连）；「切换到这条」= 立即改用它并回到主界面；长按一行 = 删除。状态灯只是一次 TCP 连接探测（不发送任何数据）。</string>
+    <string name="set_hist_checking">检测中…</string>
+    <string name="set_hist_online">在线</string>
+    <string name="set_hist_offline">连不上</string>
+    <string name="set_hist_current">（当前使用中）</string>
+    <string name="set_hist_switch">切换到这条</string>
+    <string name="set_hist_name">命名</string>
+    <string name="set_hist_switched">已切换</string>
+    <string name="set_hist_name_title">给这个地址起个名字</string>
+    <string name="set_hist_name_hint">例如：家里电脑 / 公司 / 平板热点</string>
+    <string name="set_hist_name_saved">名字已保存</string>
+    <string name="set_hist_name_cleared">名字已清除</string>
+    <string name="set_hist_delete_title">删除这条地址？</string>
+    <string name="set_hist_delete_msg">「%1$s」会从最近连接里移除。\n（不影响你当前配置的地址，也不会动别的记录。）</string>
+    <string name="set_hist_delete_ok">删除</string>
+    <string name="set_hist_deleted">已删除</string>
 </resources>

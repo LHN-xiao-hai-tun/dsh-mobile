@@ -83,7 +83,9 @@ public class SettingsActivity extends Activity {
         scan.setOnClickListener(v -> startScan(scan, et));
         root.addView(scan);
 
-        // 最近连接：点一下填入（只读本机记录，不联网）
+        // 最近连接（v1.3.9 · B2 多地址管理）：**一键切换 + 在线状态灯 + 命名 + 长按删除**
+        //   ⚠️ 点整行 = 只填入编辑框（老行为，保留：用户可能只是想改一下再连）；
+        //      「切换到这条」才是立即改用（写完配置回主界面 → onResume 比对地址变化 → 自动重载）。
         List<String> history = Prefs.history(this);
         if (!history.isEmpty()) {
             TextView label = new TextView(this);
@@ -93,17 +95,16 @@ public class SettingsActivity extends Activity {
             label.setText(R.string.settings_history_label);
             root.addView(label);
 
+            TextView histHint = new TextView(this);
+            histHint.setTextSize(11f);
+            histHint.setAlpha(0.6f);
+            histHint.setPadding(0, 0, 0, (int) (4 * d));
+            histHint.setText(R.string.set_hist_hint);
+            root.addView(histHint);
+
+            final String currentUrl = Prefs.url(this);
             for (final String h : history) {
-                TextView row = new TextView(this);
-                row.setText(h);
-                row.setTextSize(14);
-                row.setTypeface(Typeface.MONOSPACE);
-                row.setPadding((int) (8 * d), (int) (10 * d), (int) (8 * d), (int) (10 * d));
-                row.setOnClickListener(v -> {
-                    et.setText(h);
-                    et.setSelection(et.getText().length());
-                });
-                root.addView(row);
+                root.addView(historyRow(h, currentUrl, et, d));
             }
         }
 
@@ -252,6 +253,142 @@ public class SettingsActivity extends Activity {
         root.addView(about);
 
         setContentView(scroll);
+    }
+
+    /**
+     * 「最近连接」里的一行（v1.3.9 · B2）：
+     *   第一行 = 状态灯 + 名字（有的话）+「当前使用中」标记
+     *   第二行 = 地址本体（等宽字体）
+     *   第三行 = 「切换到这条」「命名」两个按钮
+     *
+     * 状态灯 = **一次 TCP 连接探测**（连上即断，不发任何应用层数据、不落盘），在后台线程跑。
+     */
+    private ViewGroup historyRow(final String url, final String currentUrl,
+                                 final EditText et, final float d) {
+        final LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int p = (int) (6 * d);
+        box.setPadding(0, p, 0, p);
+
+        // ── 第一行：灯 + 名字 + 当前标记
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+
+        final TextView dot = new TextView(this);
+        dot.setTextSize(14);
+        dot.setTextColor(0xFF8E8E93);                 // 探测中：灰
+        dot.setText("\u25CF ");
+        top.addView(dot);
+
+        final TextView status = new TextView(this);
+        status.setTextSize(13);
+        status.setAlpha(0.85f);
+        status.setText(R.string.set_hist_checking);   // 先写"检测中"，探测回来再改
+        top.addView(status);
+
+        String name = Prefs.labelFor(this, url);
+        final TextView title = new TextView(this);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setText(name.isEmpty() ? "" : ("  " + name));
+        top.addView(title);
+
+        if (url.equalsIgnoreCase(currentUrl)) {
+            TextView cur = new TextView(this);
+            cur.setTextSize(12);
+            cur.setAlpha(0.8f);
+            cur.setText("  " + getString(R.string.set_hist_current));
+            top.addView(cur);
+        }
+        box.addView(top);
+
+        // ── 第二行：地址
+        TextView addr = new TextView(this);
+        addr.setText(url);
+        addr.setTextSize(13);
+        addr.setTypeface(Typeface.MONOSPACE);
+        addr.setPadding((int) (8 * d), (int) (2 * d), 0, (int) (4 * d));
+        box.addView(addr);
+
+        // ── 第三行：两个按钮
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+
+        Button sw = new Button(this);
+        sw.setText(R.string.set_hist_switch);
+        sw.setAllCaps(false);
+        sw.setOnClickListener(v -> {
+            Prefs.setUrl(this, url);
+            Prefs.pushHistory(this, url);
+            Toast.makeText(this, R.string.set_hist_switched, Toast.LENGTH_SHORT).show();
+            finish();                                  // 回主界面 → onResume 发现地址变了 → 自动重载
+        });
+        actions.addView(sw);
+
+        Button nm = new Button(this);
+        nm.setText(R.string.set_hist_name);
+        nm.setAllCaps(false);
+        nm.setOnClickListener(v -> askName(url));
+        actions.addView(nm);
+
+        box.addView(actions);
+
+        // 点整行 = 填入编辑框（老行为）
+        box.setOnClickListener(v -> {
+            et.setText(url);
+            et.setSelection(et.getText().length());
+        });
+        // 长按 = 删除这条（带确认）
+        box.setOnLongClickListener(v -> {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.set_hist_delete_title)
+                    .setMessage(getString(R.string.set_hist_delete_msg, url))
+                    .setPositiveButton(R.string.set_hist_delete_ok, (dd, w) -> {
+                        Prefs.removeHistory(this, url);
+                        Toast.makeText(this, R.string.set_hist_deleted, Toast.LENGTH_SHORT).show();
+                        recreate();
+                    })
+                    .setNegativeButton(R.string.qc_cancel, null)
+                    .show();
+            return true;
+        });
+
+        // ── 状态探测（后台）
+        final String host = Diagnose.hostOf(url);
+        final int port = Diagnose.portOf(url);
+        new Thread(() -> {
+            final boolean open = Diagnose.tcpOpen(host, port, 1500);
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                dot.setTextColor(open ? 0xFF34C759 : 0xFFFF3B30);
+                status.setText(open ? R.string.set_hist_online : R.string.set_hist_offline);
+                status.setTextColor(open ? 0xFF34C759 : 0xFFFF3B30);
+            });
+        }, "dsh-hist-probe").start();
+
+        return box;
+    }
+
+    /** 给某个地址命名（留空 = 清除名字） */
+    private void askName(final String url) {
+        final EditText input = new EditText(this);
+        input.setHint(R.string.set_hist_name_hint);
+        input.setSingleLine(true);
+        input.setText(Prefs.labelFor(this, url));
+        input.setSelection(input.getText().length());
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.set_hist_name_title)
+                .setMessage(url)
+                .setView(input)
+                .setPositiveButton(R.string.qc_save, (dd, w) -> {
+                    String v = input.getText().toString().trim();
+                    Prefs.setLabel(this, url, v);
+                    Toast.makeText(this, v.isEmpty() ? R.string.set_hist_name_cleared
+                            : R.string.set_hist_name_saved, Toast.LENGTH_SHORT).show();
+                    recreate();
+                })
+                .setNegativeButton(R.string.qc_cancel, null)
+                .show();
     }
 
     /**
