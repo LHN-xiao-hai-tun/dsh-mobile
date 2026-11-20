@@ -103,7 +103,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  # ── ③ 单元测试（批 3-2 新增 · 当前尚无测试源）─────────────
+  # ── ③ 单元测试（批 3-2 新增）──────────────────────────────
   test:
     name: unit tests
     runs-on: ubuntu-latest
@@ -120,8 +120,7 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      # ⚠️ 仓库目前**没有 app/src/test**（0 个测试源）⇒ 这一步会以 NO-SOURCE 通过。
-      #    意义是「先把闸门装好」：一旦补上测试（批 3-4 测试矩阵），CI 不用改。
+      # 运行 app/src/test 中的测试；失败会阻断依赖本作业的发布。
       - name: Run unit tests
         run: gradle testReleaseUnitTest --no-daemon --stacktrace
 
@@ -141,7 +140,7 @@ jobs:
   #   它的 SHA-256 与「本地签名后发布的那一份」**必然不同**。
   #   所以本作业干两件事：① 当「构建可复现」的守门员（自己跟自己比）；
   #   ② 产出未签名工件的校验和供下载核对。
-  #   正式发布的哈希仍由本地 `scripts\release.ps1` 计算并写进 Release Notes。
+  #   正式发布的哈希由下方 release 作业对签名后的发布件计算；本地脚本保留作备用路径。
   determinism:
     name: 可复现闸（连续两次 clean 构建比哈希）
     runs-on: ubuntu-latest
@@ -218,11 +217,11 @@ jobs:
   #
   # ⚠️ 两条硬约束：
   #   ① `permissions` 全局是 `contents: read` ⇒ **只在本作业**提到 `contents: write`（建 Release 要），别全局提权；
-  #   ② 必须 `needs: [lint, test]` ⇒ **红灯不发版**（在红的基础上自动化 = 自动发坏包）。
+  #   ② lint、test 和 determinism 都成功后，release 才可执行。
   release:
     name: release（tag 触发 · 有密钥则云端签名）
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [lint, test]
+    needs: [lint, test, determinism]
     runs-on: ubuntu-latest
     environment: release            # 🔴 加固①：签名密钥挂在本环境 ⇒ 未批准不执行
     permissions:

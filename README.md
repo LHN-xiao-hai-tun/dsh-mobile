@@ -177,7 +177,7 @@ dsh web --port 3080 --no-open
 ```
 
 也可用系统 Gradle：`gradle assembleDebug`。
-打 Release 包：`./gradlew assembleRelease`（当前用 debug 签名，如需正式分发请自行配置签名）。
+打 Release 包：`./gradlew assembleRelease`。仓库根没有 `keystore.properties` 时产出未签名 release；配置有效密钥后使用该密钥签名。CI 的 tag 发布路径可从 `release` Environment 的 Secrets 获取密钥并签名；密钥不可用时产出 `-unsigned` 占位件，供本地签名流程替换。
 
 推送 / PR 会自动跑一次 `assembleDebug`（见 [`.github/workflows/build.yml`](.github/workflows/build.yml)）。
 
